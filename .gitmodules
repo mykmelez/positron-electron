@@ -3,7 +3,7 @@
 	url = https://github.com/electron/brightray.git
 [submodule "vendor/node"]
 	path = vendor/node
-	url = https://github.com/electron/node.git
+	url = https://github.com/mozilla/spidernode.git
 [submodule "vendor/depot_tools"]
 	path = vendor/depot_tools
 	url = https://chromium.googlesource.com/chromium/tools/depot_tools.git
