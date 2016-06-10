@@ -17,18 +17,21 @@
 
   # common.gypi includes vendor/brightray/brightray.gypi, which sets -Werror
   # for all targets.  common.gypi then unsets it for a select set of targets,
-  # current ["libuv", "http_parser", "openssl", "cares", "node", "zlib"].
+  # currently ["libuv", "http_parser", "openssl", "cares", "node", "zlib"].
   #
-  # But SpiderNode has many targets that generate warnings, like all the targets
-  # in test.gyp.  So we disable -Werror for all targets here.  Ideally we would
-  # only disable it for the specific targets with warnings.  (Of course ideally
-  # Brightray wouldn't set it for all targets, or at least Electron wouldn't
-  # apply Brightray's configuration to all targets.)
+  # But SpiderNode has many targets that generate warnings, like the targets
+  # in test.gyp.  And two can play at Brightray's game.  So we disable -Werror
+  # for all targets here.
+  #
+  # Ideally we would only disable it for the specific targets with warnings.
+  # (Of course ideally Brightray wouldn't set it for all targets, or at least
+  # Electron wouldn't apply Brightray's configuration to all targets.)
   #
   # TODO: disable -Werror for the specific SpiderNode targets with warnings.
+  #
   'target_defaults': {
     'xcode_settings': {
       'GCC_TREAT_WARNINGS_AS_ERRORS': 'NO',
-    },
+    }, # xcode_settings
   }, # target_defaults
 }
