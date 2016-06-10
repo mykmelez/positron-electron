@@ -2,6 +2,7 @@
   'includes': [
     'toolchain.gypi',
     'vendor/brightray/brightray.gypi',
+    'spidernode.gypi',
   ],
   'variables': {
     # Tell crashpad to build as external project.
