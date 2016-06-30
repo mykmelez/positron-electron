@@ -46,6 +46,7 @@
   # TODO: disable -Werror for the specific SpiderNode targets with warnings.
   #
   'target_defaults': {
+    'defines': ['NODE_ENGINE="<(node_engine)"'],
     'xcode_settings': {
       'GCC_TREAT_WARNINGS_AS_ERRORS': 'NO',
     }, # xcode_settings
