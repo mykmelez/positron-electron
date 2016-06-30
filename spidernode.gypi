@@ -15,6 +15,22 @@
     ],
   }, # variables
 
+  # toolchain.gypi sets CLANG_CXX_LIBRARY to libc++, which is quite reasonable
+  # (and also the default on modern Macs), so I have no idea why it causes clang
+  # to fail to find <tr1/type_traits>, but it does (on my Mac). Perhaps to do
+  # with Electron using a custom clang instead of the system one?  In any case,
+  # this fixes the problem on my Mac, although it seems wrong and feels dirty.
+  # But I'm starting to get used to that feeling.
+  'conditions': [
+    ['clang==1', {
+      'target_defaults': {
+        'xcode_settings': {
+          'CLANG_CXX_LIBRARY': 'libstdc++',  # -stdlib=libstdc++
+        },
+      },
+    }],  # clang==1
+  ],
+
   # common.gypi includes vendor/brightray/brightray.gypi, which sets -Werror
   # for all targets.  common.gypi then unsets it for a select set of targets,
   # currently ["libuv", "http_parser", "openssl", "cares", "node", "zlib"].
