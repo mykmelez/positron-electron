@@ -23,9 +23,9 @@ describe('browser-window module', function () {
 
   before(function (done) {
     server = http.createServer(function (req, res) {
-      function respond() { res.end(''); }
+      function respond () { res.end('') }
       setTimeout(respond, req.url.includes('slow') ? 200 : 0)
-    });
+    })
     server.listen(0, '127.0.0.1', function () {
       server.url = 'http://127.0.0.1:' + server.address().port
       done()
@@ -44,7 +44,10 @@ describe('browser-window module', function () {
     w = new BrowserWindow({
       show: false,
       width: 400,
-      height: 400
+      height: 400,
+      webPreferences: {
+        backgroundThrottling: false
+      }
     })
   })
 
@@ -125,7 +128,7 @@ describe('browser-window module', function () {
         'did-get-response-details.html': 'mainFrame',
         'logo.png': 'image'
       }
-      var responses = 0;
+      var responses = 0
       w.webContents.on('did-get-response-details', function (event, status, newUrl, oldUrl, responseCode, method, referrer, headers, resourceType) {
         responses++
         var fileName = newUrl.slice(newUrl.lastIndexOf('/') + 1)
@@ -284,6 +287,36 @@ describe('browser-window module', function () {
     })
   })
 
+  describe('BrowserWindow.setMinimum/MaximumSize(width, height)', function () {
+    it('sets the maximum and minimum size of the window', function () {
+      assert.deepEqual(w.getMinimumSize(), [0, 0])
+      assert.deepEqual(w.getMaximumSize(), [0, 0])
+
+      w.setMinimumSize(100, 100)
+      assert.deepEqual(w.getMinimumSize(), [100, 100])
+      assert.deepEqual(w.getMaximumSize(), [0, 0])
+
+      w.setMaximumSize(900, 600)
+      assert.deepEqual(w.getMinimumSize(), [100, 100])
+      assert.deepEqual(w.getMaximumSize(), [900, 600])
+    })
+  })
+
+  describe('BrowserWindow.setAspectRatio(ratio)', function () {
+    it('resets the behaviour when passing in 0', function (done) {
+      var size = [300, 400]
+      w.setAspectRatio(1 / 2)
+      w.setAspectRatio(0)
+      w.once('resize', function () {
+        var newSize = w.getSize()
+        assert.equal(newSize[0], size[0])
+        assert.equal(newSize[1], size[1])
+        done()
+      })
+      w.setSize(size[0], size[1])
+    })
+  })
+
   describe('BrowserWindow.setPosition(x, y)', function () {
     it('sets the window position', function (done) {
       var pos = [10, 10]
@@ -319,6 +352,22 @@ describe('browser-window module', function () {
       var after = w.getContentSize()
       assert.equal(after[0], size[0])
       assert.equal(after[1], size[1])
+    })
+  })
+
+  describe('BrowserWindow.setProgressBar(progress)', function () {
+    it('sets the progress', function () {
+      assert.doesNotThrow(function () {
+        if (process.platform === 'darwin') {
+          app.dock.setIcon(path.join(fixtures, 'assets', 'logo.png'))
+        }
+        w.setProgressBar(0.5)
+
+        if (process.platform === 'darwin') {
+          app.dock.setIcon(null)
+        }
+        w.setProgressBar(-1)
+      })
     })
   })
 
@@ -399,7 +448,7 @@ describe('browser-window module', function () {
     })
   })
 
-  describe('"enableLargerThanScreen" option', function () {
+  describe('enableLargerThanScreen" option', function () {
     if (process.platform === 'linux') {
       return
     }
@@ -476,18 +525,11 @@ describe('browser-window module', function () {
   })
 
   describe('beforeunload handler', function () {
-    it('returning true would not prevent close', function (done) {
+    it('returning undefined would not prevent close', function (done) {
       w.on('closed', function () {
         done()
       })
-      w.loadURL('file://' + path.join(fixtures, 'api', 'close-beforeunload-true.html'))
-    })
-
-    it('returning non-empty string would not prevent close', function (done) {
-      w.on('closed', function () {
-        done()
-      })
-      w.loadURL('file://' + path.join(fixtures, 'api', 'close-beforeunload-string.html'))
+      w.loadURL('file://' + path.join(fixtures, 'api', 'close-beforeunload-undefined.html'))
     })
 
     it('returning false would prevent close', function (done) {
@@ -579,20 +621,50 @@ describe('browser-window module', function () {
   })
 
   describe('beginFrameSubscription method', function () {
+    // This test is too slow, only test it on CI.
+    if (!isCI) return
+
     this.timeout(20000)
 
-    it('subscribes frame updates', function (done) {
+    it('subscribes to frame updates', function (done) {
       let called = false
-      w.loadURL('file://' + fixtures + '/api/blank.html')
-      w.webContents.beginFrameSubscription(function (data) {
-        // This callback might be called twice.
-        if (called) return
-        called = true
+      w.loadURL('file://' + fixtures + '/api/frame-subscriber.html')
+      w.webContents.on('dom-ready', function () {
+        w.webContents.beginFrameSubscription(function (data) {
+          // This callback might be called twice.
+          if (called) return
+          called = true
 
-        assert.notEqual(data.length, 0)
-        w.webContents.endFrameSubscription()
-        done()
+          assert.notEqual(data.length, 0)
+          w.webContents.endFrameSubscription()
+          done()
+        })
       })
+    })
+
+    it('subscribes to frame updates (only dirty rectangle)', function (done) {
+      let called = false
+      w.loadURL('file://' + fixtures + '/api/frame-subscriber.html')
+      w.webContents.on('dom-ready', function () {
+        w.webContents.beginFrameSubscription(true, function (data) {
+          // This callback might be called twice.
+          if (called) return
+          called = true
+
+          assert.notEqual(data.length, 0)
+          w.webContents.endFrameSubscription()
+          done()
+        })
+      })
+    })
+
+    it('throws error when subscriber is not well defined', function (done) {
+      w.loadURL('file://' + fixtures + '/api/frame-subscriber.html')
+      try {
+        w.webContents.beginFrameSubscription(true, true)
+      } catch (e) {
+        done()
+      }
     })
   })
 
@@ -657,7 +729,7 @@ describe('browser-window module', function () {
 
     describe('loading main frame state', function () {
       it('is true when the main frame is loading', function (done) {
-        w.webContents.on('did-start-loading', function() {
+        w.webContents.on('did-start-loading', function () {
           assert.equal(w.webContents.isLoadingMainFrame(), true)
           done()
         })
@@ -665,9 +737,9 @@ describe('browser-window module', function () {
       })
 
       it('is false when only a subframe is loading', function (done) {
-        w.webContents.once('did-finish-load', function() {
+        w.webContents.once('did-finish-load', function () {
           assert.equal(w.webContents.isLoadingMainFrame(), false)
-          w.webContents.on('did-start-loading', function() {
+          w.webContents.on('did-start-loading', function () {
             assert.equal(w.webContents.isLoadingMainFrame(), false)
             done()
           })
@@ -681,9 +753,9 @@ describe('browser-window module', function () {
       })
 
       it('is true when navigating to pages from the same origin', function (done) {
-        w.webContents.once('did-finish-load', function() {
+        w.webContents.once('did-finish-load', function () {
           assert.equal(w.webContents.isLoadingMainFrame(), false)
-          w.webContents.on('did-start-loading', function() {
+          w.webContents.on('did-start-loading', function () {
             assert.equal(w.webContents.isLoadingMainFrame(), true)
             done()
           })
@@ -756,7 +828,7 @@ describe('browser-window module', function () {
     })
 
     describe('fullscreenable state', function () {
-      // Only implemented on OS X.
+      // Only implemented on macOS.
       if (process.platform !== 'darwin') return
 
       it('can be changed with fullscreenable option', function () {
@@ -812,6 +884,110 @@ describe('browser-window module', function () {
     })
   })
 
+  describe('parent window', function () {
+    let c = null
+
+    beforeEach(function () {
+      if (c != null) c.destroy()
+      c = new BrowserWindow({show: false, parent: w})
+    })
+
+    afterEach(function () {
+      if (c != null) c.destroy()
+      c = null
+    })
+
+    describe('parent option', function () {
+      it('sets parent window', function () {
+        assert.equal(c.getParentWindow(), w)
+      })
+
+      it('adds window to child windows of parent', function () {
+        assert.deepEqual(w.getChildWindows(), [c])
+      })
+
+      it('removes from child windows of parent when window is closed', function (done) {
+        c.once('closed', () => {
+          assert.deepEqual(w.getChildWindows(), [])
+          done()
+        })
+        c.close()
+      })
+    })
+
+    describe('win.setParentWindow(parent)', function () {
+      if (process.platform === 'win32') return
+
+      beforeEach(function () {
+        if (c != null) c.destroy()
+        c = new BrowserWindow({show: false})
+      })
+
+      it('sets parent window', function () {
+        assert.equal(w.getParentWindow(), null)
+        assert.equal(c.getParentWindow(), null)
+        c.setParentWindow(w)
+        assert.equal(c.getParentWindow(), w)
+        c.setParentWindow(null)
+        assert.equal(c.getParentWindow(), null)
+      })
+
+      it('adds window to child windows of parent', function () {
+        assert.deepEqual(w.getChildWindows(), [])
+        c.setParentWindow(w)
+        assert.deepEqual(w.getChildWindows(), [c])
+        c.setParentWindow(null)
+        assert.deepEqual(w.getChildWindows(), [])
+      })
+
+      it('removes from child windows of parent when window is closed', function (done) {
+        c.once('closed', () => {
+          assert.deepEqual(w.getChildWindows(), [])
+          done()
+        })
+        c.setParentWindow(w)
+        c.close()
+      })
+    })
+
+    describe('modal option', function () {
+      // The isEnabled API is not reliable on macOS.
+      if (process.platform === 'darwin') return
+
+      beforeEach(function () {
+        if (c != null) c.destroy()
+        c = new BrowserWindow({show: false, parent: w, modal: true})
+      })
+
+      it('disables parent window', function () {
+        assert.equal(w.isEnabled(), true)
+        c.show()
+        assert.equal(w.isEnabled(), false)
+      })
+
+      it('enables parent window when closed', function (done) {
+        c.once('closed', () => {
+          assert.equal(w.isEnabled(), true)
+          done()
+        })
+        c.show()
+        c.close()
+      })
+
+      it('disables parent window recursively', function () {
+        let c2 = new BrowserWindow({show: false, parent: w, modal: true})
+        c.show()
+        assert.equal(w.isEnabled(), false)
+        c2.show()
+        assert.equal(w.isEnabled(), false)
+        c.destroy()
+        assert.equal(w.isEnabled(), false)
+        c2.destroy()
+        assert.equal(w.isEnabled(), true)
+      })
+    })
+  })
+
   describe('window.webContents.send(channel, args...)', function () {
     it('throws an error when the channel is missing', function () {
       assert.throws(function () {
@@ -830,17 +1006,20 @@ describe('browser-window module', function () {
 
       beforeEach(function () {
         BrowserWindow.removeDevToolsExtension('foo')
+        assert.equal(BrowserWindow.getDevToolsExtensions().hasOwnProperty('foo'), false)
 
         var extensionPath = path.join(__dirname, 'fixtures', 'devtools-extensions', 'foo')
         BrowserWindow.addDevToolsExtension(extensionPath)
+        assert.equal(BrowserWindow.getDevToolsExtensions().hasOwnProperty('foo'), true)
 
         w.webContents.on('devtools-opened', function () {
           var showPanelIntevalId = setInterval(function () {
             if (w && w.devToolsWebContents) {
-              w.devToolsWebContents.executeJavaScript('(' + (function () {
+              var showLastPanel = function () {
                 var lastPanelId = WebInspector.inspectorView._tabbedPane._tabs.peekLast().id
                 WebInspector.inspectorView.showPanel(lastPanelId)
-              }).toString() + ')()')
+              }
+              w.devToolsWebContents.executeJavaScript(`(${showLastPanel})()`)
             } else {
               clearInterval(showPanelIntevalId)
             }
@@ -850,12 +1029,30 @@ describe('browser-window module', function () {
         w.loadURL('about:blank')
       })
 
+      it('throws errors for missing manifest.json files', function () {
+        assert.throws(function () {
+          BrowserWindow.addDevToolsExtension(path.join(__dirname, 'does-not-exist'))
+        }, /ENOENT: no such file or directory/)
+      })
+
+      it('throws errors for invalid manifest.json files', function () {
+        assert.throws(function () {
+          BrowserWindow.addDevToolsExtension(path.join(__dirname, 'fixtures', 'devtools-extensions', 'bad-manifest'))
+        }, /Unexpected token }/)
+      })
+
       describe('when the devtools is docked', function () {
         it('creates the extension', function (done) {
           w.webContents.openDevTools({mode: 'bottom'})
 
           ipcMain.once('answer', function (event, message) {
-            assert.equal(message, 'extension loaded')
+            assert.equal(message.runtimeId, 'foo')
+            assert.equal(message.tabId, w.webContents.id)
+            assert.equal(message.i18nString, 'foo - bar (baz)')
+            assert.deepEqual(message.storageItems, {
+              local: {hello: 'world'},
+              sync: {foo: 'bar'}
+            })
             done()
           })
         })
@@ -865,11 +1062,52 @@ describe('browser-window module', function () {
         it('creates the extension', function (done) {
           w.webContents.openDevTools({mode: 'undocked'})
 
-          ipcMain.once('answer', function (event, message) {
-            assert.equal(message, 'extension loaded')
+          ipcMain.once('answer', function (event, message, extensionId) {
+            assert.equal(message.runtimeId, 'foo')
+            assert.equal(message.tabId, w.webContents.id)
             done()
           })
         })
+      })
+    })
+
+    it('works when used with partitions', function (done) {
+      this.timeout(10000)
+
+      if (w != null) {
+        w.destroy()
+      }
+      w = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          partition: 'temp'
+        }
+      })
+
+      var extensionPath = path.join(__dirname, 'fixtures', 'devtools-extensions', 'foo')
+      BrowserWindow.removeDevToolsExtension('foo')
+      BrowserWindow.addDevToolsExtension(extensionPath)
+
+      w.webContents.on('devtools-opened', function () {
+        var showPanelIntevalId = setInterval(function () {
+          if (w && w.devToolsWebContents) {
+            var showLastPanel = function () {
+              var lastPanelId = WebInspector.inspectorView._tabbedPane._tabs.peekLast().id
+              WebInspector.inspectorView.showPanel(lastPanelId)
+            }
+            w.devToolsWebContents.executeJavaScript(`(${showLastPanel})()`)
+          } else {
+            clearInterval(showPanelIntevalId)
+          }
+        }, 100)
+      })
+
+      w.loadURL('about:blank')
+      w.webContents.openDevTools({mode: 'bottom'})
+
+      ipcMain.once('answer', function (event, message) {
+        assert.equal(message.runtimeId, 'foo')
+        done()
       })
     })
 
@@ -906,14 +1144,14 @@ describe('browser-window module', function () {
     })
 
     it('works after page load and during subframe load', function (done) {
-      w.webContents.once('did-finish-load', function() {
+      w.webContents.once('did-finish-load', function () {
         // initiate a sub-frame load, then try and execute script during it
         w.webContents.executeJavaScript(`
           var iframe = document.createElement('iframe')
           iframe.src = '${server.url}/slow'
           document.body.appendChild(iframe)
-        `, function() {
-          w.webContents.executeJavaScript(`console.log('hello')`, function() {
+        `, function () {
+          w.webContents.executeJavaScript('console.log(\'hello\')', function () {
             done()
           })
         })
@@ -922,11 +1160,105 @@ describe('browser-window module', function () {
     })
 
     it('executes after page load', function (done) {
-      w.webContents.executeJavaScript(code, function(result) {
+      w.webContents.executeJavaScript(code, function (result) {
         assert.equal(result, expected)
         done()
       })
       w.loadURL(server.url)
+    })
+  })
+
+  describe('offscreen rendering', function () {
+    this.timeout(10000)
+
+    beforeEach(function () {
+      if (w != null) w.destroy()
+      w = new BrowserWindow({
+        show: false,
+        webPreferences: {
+          backgroundThrottling: false,
+          offscreen: true
+        }
+      })
+    })
+
+    it('creates offscreen window', function (done) {
+      w.webContents.once('paint', function (event, rect, data, size) {
+        assert.notEqual(data.length, 0)
+        done()
+      })
+      w.loadURL('file://' + fixtures + '/api/offscreen-rendering.html')
+    })
+
+    describe('window.webContents.isOffscreen()', function () {
+      it('is true for offscreen type', function () {
+        w.loadURL('file://' + fixtures + '/api/offscreen-rendering.html')
+        assert.equal(w.webContents.isOffscreen(), true)
+      })
+
+      it('is false for regular window', function () {
+        let c = new BrowserWindow({show: false})
+        assert.equal(c.webContents.isOffscreen(), false)
+        c.destroy()
+      })
+    })
+
+    describe('window.webContents.isPainting()', function () {
+      it('returns whether is currently painting', function (done) {
+        w.webContents.once('paint', function (event, rect, data, size) {
+          assert.equal(w.webContents.isPainting(), true)
+          done()
+        })
+        w.loadURL('file://' + fixtures + '/api/offscreen-rendering.html')
+      })
+    })
+
+    describe('window.webContents.stopPainting()', function () {
+      it('stops painting', function (done) {
+        w.webContents.on('dom-ready', function () {
+          w.webContents.stopPainting()
+          assert.equal(w.webContents.isPainting(), false)
+          done()
+        })
+        w.loadURL('file://' + fixtures + '/api/offscreen-rendering.html')
+      })
+    })
+
+    describe('window.webContents.startPainting()', function () {
+      it('starts painting', function (done) {
+        w.webContents.on('dom-ready', function () {
+          w.webContents.stopPainting()
+          w.webContents.startPainting()
+          w.webContents.once('paint', function (event, rect, data, size) {
+            assert.equal(w.webContents.isPainting(), true)
+            done()
+          })
+        })
+        w.loadURL('file://' + fixtures + '/api/offscreen-rendering.html')
+      })
+    })
+
+    describe('window.webContents.getFrameRate()', function () {
+      it('has default frame rate', function (done) {
+        w.webContents.once('paint', function (event, rect, data, size) {
+          assert.equal(w.webContents.getFrameRate(), 60)
+          done()
+        })
+        w.loadURL('file://' + fixtures + '/api/offscreen-rendering.html')
+      })
+    })
+
+    describe('window.webContents.setFrameRate(frameRate)', function () {
+      it('sets custom frame rate', function (done) {
+        w.webContents.on('dom-ready', function () {
+          w.webContents.setFrameRate(30)
+          w.webContents.once('paint', function (event, rect, data, size) {
+            assert.equal(w.webContents.getFrameRate(), 30)
+            done()
+          })
+        })
+        w.loadURL('file://' + fixtures + '/api/offscreen-rendering.html')
+      })
     })
   })
 })

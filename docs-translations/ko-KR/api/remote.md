@@ -20,7 +20,7 @@ let win = new BrowserWindow({width: 800, height: 600});
 win.loadURL('https://github.com');
 ```
 
-**참고:** 반대로 메인 프로세스에서 렌더러 프로세스에 접근 하려면 [webContents.executeJavascript](web-contents.md#webcontentsexecutejavascriptcode-usergesture)
+**참고:** 반대로 메인 프로세스에서 렌더러 프로세스에 접근 하려면 [webContents.executeJavascript](web-contents.md#webcontentsexecutejavascriptcode-usergesture-callback)
 메서드를 사용하면 됩니다.
 
 ## Remote 객체
@@ -35,8 +35,9 @@ win.loadURL('https://github.com');
 않습니다. 대신에 이 `BrowserWindow` 객체는 메인 프로세스에서 생성되며 렌더러
 프로세스에 `win` 객체와 같이 이에 대응하는 remote 객체를 반환합니다.
 
-참고로 remote를 통해선 [enumerable 속성](https://developer.mozilla.org/ko/docs/Web/JavaScript/Enumerability_and_ownership_of_properties)을
-가진 프로퍼티에만 접근할 수 있습니다.
+참고로 remote 객체가 처음 참조될 때 표시되는
+[enumerable 속성](https://developer.mozilla.org/ko/docs/Web/JavaScript/Enumerability_and_ownership_of_properties)은
+remote를 통해서만 접근할 수 있습니다.
 
 ## Remote 객체의 생명 주기
 
@@ -69,19 +70,19 @@ exports.withRendererCallback = (mapper) => {
 ;
 
 exports.withLocalCallback = () => {
-  return exports.mapNumbers(x => x + 1);
+  return [1,2,3].map(x => x + 1);
 };
 ```
 
 ```javascript
 // 렌더러 프로세스
-const mapNumbers = require('remote').require('./mapNumbers');
+const mapNumbers = require('electron').remote.require('./mapNumbers');
 
 const withRendererCb = mapNumbers.withRendererCallback(x => x + 1);
 
 const withLocalCb = mapNumbers.withLocalCallback();
 
-console.log(withRendererCb, withLocalCb); // [true, true, true], [2, 3, 4]
+console.log(withRendererCb, withLocalCb); // [undefined, undefined, undefined], [2, 3, 4]
 ```
 
 보다시피 동기적인 렌더러 콜백 함수의 반환 값은 예상되지 않은 값입니다. 그리고 메인

@@ -11,11 +11,11 @@ import stat
 from lib.config import LIBCHROMIUMCONTENT_COMMIT, BASE_URL, PLATFORM, \
                        get_target_arch, get_chromedriver_version, \
                        get_platform_key
-from lib.util import scoped_cwd, rm_rf, get_atom_shell_version, make_zip, \
-                     execute, atom_gyp
+from lib.util import scoped_cwd, rm_rf, get_electron_version, make_zip, \
+                     execute, electron_gyp
 
 
-ATOM_SHELL_VERSION = get_atom_shell_version()
+ELECTRON_VERSION = get_electron_version()
 
 SOURCE_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 DIST_DIR = os.path.join(SOURCE_ROOT, 'dist')
@@ -23,8 +23,8 @@ OUT_DIR = os.path.join(SOURCE_ROOT, 'out', 'R')
 CHROMIUM_DIR = os.path.join(SOURCE_ROOT, 'vendor', 'brightray', 'vendor',
                             'download', 'libchromiumcontent', 'static_library')
 
-PROJECT_NAME = atom_gyp()['project_name%']
-PRODUCT_NAME = atom_gyp()['product_name%']
+PROJECT_NAME = electron_gyp()['project_name%']
+PRODUCT_NAME = electron_gyp()['product_name%']
 
 TARGET_BINARIES = {
   'darwin': [
@@ -38,8 +38,10 @@ TARGET_BINARIES = {
     'libGLESv2.dll',
     'ffmpeg.dll',
     'node.dll',
+    'blink_image_resources_200_percent.pak',
     'content_resources_200_percent.pak',
     'ui_resources_200_percent.pak',
+    'views_resources_200_percent.pak',
     'xinput1_3.dll',
     'natives_blob.bin',
     'snapshot_blob.bin',
@@ -50,6 +52,10 @@ TARGET_BINARIES = {
     'icudtl.dat',
     'libffmpeg.so',
     'libnode.so',
+    'blink_image_resources_200_percent.pak',
+    'content_resources_200_percent.pak',
+    'ui_resources_200_percent.pak',
+    'views_resources_200_percent.pak',
     'natives_blob.bin',
     'snapshot_blob.bin',
   ],
@@ -86,7 +92,7 @@ def main():
   create_version()
   create_dist_zip()
   create_chrome_binary_zip('chromedriver', get_chromedriver_version())
-  create_chrome_binary_zip('mksnapshot', ATOM_SHELL_VERSION)
+  create_chrome_binary_zip('mksnapshot', ELECTRON_VERSION)
   create_ffmpeg_zip()
   create_symbols_zip()
 
@@ -140,7 +146,7 @@ def strip_binary(binary_path):
 def create_version():
   version_path = os.path.join(SOURCE_ROOT, 'dist', 'version')
   with open(version_path, 'w') as version_file:
-    version_file.write(ATOM_SHELL_VERSION)
+    version_file.write(ELECTRON_VERSION)
 
 
 def create_symbols():
@@ -152,10 +158,14 @@ def create_symbols():
     dsyms = glob.glob(os.path.join(OUT_DIR, '*.dSYM'))
     for dsym in dsyms:
       shutil.copytree(dsym, os.path.join(DIST_DIR, os.path.basename(dsym)))
+  elif PLATFORM == 'win32':
+    pdbs = glob.glob(os.path.join(OUT_DIR, '*.pdb'))
+    for pdb in pdbs:
+      shutil.copy2(pdb, DIST_DIR)
 
 
 def create_dist_zip():
-  dist_name = '{0}-{1}-{2}-{3}.zip'.format(PROJECT_NAME, ATOM_SHELL_VERSION,
+  dist_name = '{0}-{1}-{2}-{3}.zip'.format(PROJECT_NAME, ELECTRON_VERSION,
                                            get_platform_key(),
                                            get_target_arch())
   zip_file = os.path.join(SOURCE_ROOT, 'dist', dist_name)
@@ -183,7 +193,7 @@ def create_chrome_binary_zip(binary, version):
 
 def create_ffmpeg_zip():
   dist_name = 'ffmpeg-{0}-{1}-{2}.zip'.format(
-      ATOM_SHELL_VERSION, get_platform_key(), get_target_arch())
+      ELECTRON_VERSION, get_platform_key(), get_target_arch())
   zip_file = os.path.join(SOURCE_ROOT, 'dist', dist_name)
 
   if PLATFORM == 'darwin':
@@ -205,7 +215,7 @@ def create_ffmpeg_zip():
 
 def create_symbols_zip():
   dist_name = '{0}-{1}-{2}-{3}-symbols.zip'.format(PROJECT_NAME,
-                                                   ATOM_SHELL_VERSION,
+                                                   ELECTRON_VERSION,
                                                    get_platform_key(),
                                                    get_target_arch())
   zip_file = os.path.join(DIST_DIR, dist_name)
@@ -217,12 +227,20 @@ def create_symbols_zip():
 
   if PLATFORM == 'darwin':
     dsym_name = '{0}-{1}-{2}-{3}-dsym.zip'.format(PROJECT_NAME,
-                                                  ATOM_SHELL_VERSION,
+                                                  ELECTRON_VERSION,
                                                   get_platform_key(),
                                                   get_target_arch())
     with scoped_cwd(DIST_DIR):
       dsyms = glob.glob('*.dSYM')
       make_zip(os.path.join(DIST_DIR, dsym_name), licenses, dsyms)
+  elif PLATFORM == 'win32':
+    pdb_name = '{0}-{1}-{2}-{3}-pdb.zip'.format(PROJECT_NAME,
+                                                ELECTRON_VERSION,
+                                                get_platform_key(),
+                                                get_target_arch())
+    with scoped_cwd(DIST_DIR):
+      pdbs = glob.glob('*.pdb')
+      make_zip(os.path.join(DIST_DIR, pdb_name), pdbs + licenses, [])
 
 
 if __name__ == '__main__':

@@ -39,7 +39,7 @@ class ScriptExecutionCallback : public blink::WebScriptExecutionCallback {
 
   explicit ScriptExecutionCallback(const CompletionCallback& callback)
       : callback_(callback) {}
-  ~ScriptExecutionCallback() {}
+  ~ScriptExecutionCallback() override {}
 
   void completed(
       const blink::WebVector<v8::Local<v8::Value>>& result) override {
@@ -158,7 +158,7 @@ void WebFrame::ExecuteJavaScript(const base::string16& code,
   args->GetNext(&has_user_gesture);
   ScriptExecutionCallback::CompletionCallback completion_callback;
   args->GetNext(&completion_callback);
-  scoped_ptr<blink::WebScriptExecutionCallback> callback(
+  std::unique_ptr<blink::WebScriptExecutionCallback> callback(
       new ScriptExecutionCallback(completion_callback));
   web_frame_->requestExecuteScriptAndReturnValue(
       blink::WebScriptSource(code),
@@ -187,8 +187,9 @@ void WebFrame::ClearCache(v8::Isolate* isolate) {
 
 // static
 void WebFrame::BuildPrototype(
-    v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> prototype) {
-  mate::ObjectTemplateBuilder(isolate, prototype)
+    v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> prototype) {
+  prototype->SetClassName(mate::StringToV8(isolate, "WebFrame"));
+  mate::ObjectTemplateBuilder(isolate, prototype->PrototypeTemplate())
       .SetMethod("setName", &WebFrame::SetName)
       .SetMethod("setZoomLevel", &WebFrame::SetZoomLevel)
       .SetMethod("getZoomLevel", &WebFrame::GetZoomLevel)
@@ -219,11 +220,14 @@ void WebFrame::BuildPrototype(
 
 namespace {
 
+using atom::api::WebFrame;
+
 void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Value> unused,
                 v8::Local<v8::Context> context, void* priv) {
   v8::Isolate* isolate = context->GetIsolate();
   mate::Dictionary dict(isolate, exports);
-  dict.Set("webFrame", atom::api::WebFrame::Create(isolate));
+  dict.Set("webFrame", WebFrame::Create(isolate));
+  dict.Set("WebFrame", WebFrame::GetConstructor(isolate)->GetFunction());
 }
 
 }  // namespace

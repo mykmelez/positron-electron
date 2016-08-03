@@ -6,15 +6,16 @@
 #define ATOM_BROWSER_API_ATOM_API_WINDOW_H_
 
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
-#include "base/memory/scoped_ptr.h"
 #include "ui/gfx/image/image.h"
 #include "atom/browser/api/trackable_object.h"
 #include "atom/browser/native_window.h"
 #include "atom/browser/native_window_observer.h"
 #include "atom/common/api/atom_api_native_image.h"
+#include "atom/common/key_weak_map.h"
 #include "native_mate/handle.h"
 
 class GURL;
@@ -39,10 +40,10 @@ class WebContents;
 class Window : public mate::TrackableObject<Window>,
                public NativeWindowObserver {
  public:
-  static mate::WrappableBase* New(v8::Isolate* isolate, mate::Arguments* args);
+  static mate::WrappableBase* New(mate::Arguments* args);
 
   static void BuildPrototype(v8::Isolate* isolate,
-                             v8::Local<v8::ObjectTemplate> prototype);
+                             v8::Local<v8::FunctionTemplate> prototype);
 
   // Returns the BrowserWindow object from |native_window|.
   static v8::Local<v8::Value> From(v8::Isolate* isolate,
@@ -51,16 +52,19 @@ class Window : public mate::TrackableObject<Window>,
   NativeWindow* window() const { return window_.get(); }
 
  protected:
-  Window(v8::Isolate* isolate, const mate::Dictionary& options);
+  Window(v8::Isolate* isolate, v8::Local<v8::Object> wrapper,
+         const mate::Dictionary& options);
   ~Window() override;
 
   // NativeWindowObserver:
   void WillCloseWindow(bool* prevent_default) override;
+  void WillDestoryNativeObject() override;
   void OnWindowClosed() override;
   void OnWindowBlur() override;
   void OnWindowFocus() override;
   void OnWindowShow() override;
   void OnWindowHide() override;
+  void OnReadyToShow() override;
   void OnWindowMaximize() override;
   void OnWindowUnmaximize() override;
   void OnWindowMinimize() override;
@@ -93,6 +97,7 @@ class Window : public mate::TrackableObject<Window>,
   void ShowInactive();
   void Hide();
   bool IsVisible();
+  bool IsEnabled();
   void Maximize();
   void Unmaximize();
   bool IsMaximized();
@@ -146,7 +151,8 @@ class Window : public mate::TrackableObject<Window>,
   void SetDocumentEdited(bool edited);
   bool IsDocumentEdited();
   void SetIgnoreMouseEvents(bool ignore);
-  void CapturePage(mate::Arguments* args);
+  void SetContentProtection(bool enable);
+  void SetFocusable(bool focusable);
   void SetProgressBar(double progress);
   void SetOverlayIcon(const gfx::Image& overlay,
                       const std::string& description);
@@ -157,6 +163,10 @@ class Window : public mate::TrackableObject<Window>,
   void SetMenuBarVisibility(bool visible);
   bool IsMenuBarVisible();
   void SetAspectRatio(double aspect_ratio, mate::Arguments* args);
+  void SetParentWindow(v8::Local<v8::Value> value, mate::Arguments* args);
+  v8::Local<v8::Value> GetParentWindow() const;
+  std::vector<v8::Local<v8::Object>> GetChildWindows() const;
+  bool IsModal() const;
   v8::Local<v8::Value> GetNativeWindowHandle();
 
 #if defined(OS_WIN)
@@ -167,10 +177,7 @@ class Window : public mate::TrackableObject<Window>,
   bool IsWindowMessageHooked(UINT message);
   void UnhookWindowMessage(UINT message);
   void UnhookAllWindowMessages();
-#endif
-
-#if defined(OS_MACOSX)
-  void ShowDefinitionForSelection();
+  bool SetThumbnailClip(const gfx::Rect& region);
 #endif
 
 #if defined(TOOLKIT_VIEWS)
@@ -183,6 +190,9 @@ class Window : public mate::TrackableObject<Window>,
   int32_t ID() const;
   v8::Local<v8::Value> WebContents(v8::Isolate* isolate);
 
+  // Remove this window from parent window's |child_windows_|.
+  void RemoveFromParentChildWindows();
+
 #if defined(OS_WIN)
   typedef std::map<UINT, MessageCallback> MessageCallbackMap;
   MessageCallbackMap messages_callback_map_;
@@ -190,10 +200,12 @@ class Window : public mate::TrackableObject<Window>,
 
   v8::Global<v8::Value> web_contents_;
   v8::Global<v8::Value> menu_;
+  v8::Global<v8::Value> parent_window_;
+  KeyWeakMap<int> child_windows_;
 
   api::WebContents* api_web_contents_;
 
-  scoped_ptr<NativeWindow> window_;
+  std::unique_ptr<NativeWindow> window_;
 
   DISALLOW_COPY_AND_ASSIGN(Window);
 };

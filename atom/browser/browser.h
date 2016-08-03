@@ -14,17 +14,15 @@
 #include "base/strings/string16.h"
 #include "atom/browser/browser_observer.h"
 #include "atom/browser/window_list_observer.h"
+#include "native_mate/arguments.h"
 
 #if defined(OS_WIN)
 #include "base/files/file_path.h"
 #endif
 
 namespace base {
+class DictionaryValue;
 class FilePath;
-}
-
-namespace ui {
-class MenuModel;
 }
 
 namespace gfx {
@@ -33,6 +31,7 @@ class Image;
 
 namespace atom {
 
+class AtomMenuModel;
 class LoginHandler;
 
 // This class is used for control application-wide operations.
@@ -85,6 +84,21 @@ class Browser : public WindowListObserver {
   // Query the current state of default handler for a protocol.
   bool IsDefaultProtocolClient(const std::string& protocol);
 
+  // Set/Get the badge count.
+  bool SetBadgeCount(int count);
+  int GetBadgeCount();
+
+  // Set/Get the login item settings of the app
+  struct LoginItemSettings {
+    bool open_at_login = false;
+    bool open_as_hidden = false;
+    bool restore_state = false;
+    bool opened_at_login = false;
+    bool opened_as_hidden = false;
+  };
+  void SetLoginItemSettings(LoginItemSettings settings);
+  LoginItemSettings GetLoginItemSettings();
+
 #if defined(OS_MACOSX)
   // Hide the application.
   void Hide();
@@ -94,7 +108,8 @@ class Browser : public WindowListObserver {
 
   // Creates an activity and sets it as the one currently in use.
   void SetUserActivity(const std::string& type,
-                       const base::DictionaryValue& user_info);
+                       const base::DictionaryValue& user_info,
+                       mate::Arguments* args);
 
   // Returns the type name of the current user activity.
   std::string GetCurrentActivityType();
@@ -121,9 +136,10 @@ class Browser : public WindowListObserver {
   // Hide/Show dock.
   void DockHide();
   void DockShow();
+  bool DockIsVisible();
 
   // Set docks' menu.
-  void DockSetMenu(ui::MenuModel* model);
+  void DockSetMenu(AtomMenuModel* model);
 
   // Set docks' icon.
   void DockSetIcon(const gfx::Image& image);
@@ -146,7 +162,12 @@ class Browser : public WindowListObserver {
   // one from app's name.
   // The returned string managed by Browser, and should not be modified.
   PCWSTR GetAppUserModelID();
-#endif
+#endif  // defined(OS_WIN)
+
+#if defined(OS_LINUX)
+  // Whether Unity launcher is running.
+  bool IsUnityRunning();
+#endif  // defined(OS_LINUX)
 
   // Tell the application to open a file.
   bool OpenFile(const std::string& file_path);
@@ -162,8 +183,11 @@ class Browser : public WindowListObserver {
   void WillFinishLaunching();
   void DidFinishLaunching();
 
+  void OnAccessibilitySupportChanged();
+
   // Request basic auth login.
-  void RequestLogin(LoginHandler* login_handler);
+  void RequestLogin(LoginHandler* login_handler,
+                    std::unique_ptr<base::DictionaryValue> request_details);
 
   void AddObserver(BrowserObserver* obs) {
     observers_.AddObserver(obs);
@@ -211,6 +235,8 @@ class Browser : public WindowListObserver {
 
   std::string version_override_;
   std::string name_override_;
+
+  int badge_count_ = 0;
 
 #if defined(OS_WIN)
   base::string16 app_user_model_id_;

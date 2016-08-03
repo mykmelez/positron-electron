@@ -37,13 +37,13 @@ console.log(clipboard.readText('selection'));
 
 클립보드에 `plain text`로 문자열을 씁니다.
 
-### `clipboard.readHtml([type])`
+### `clipboard.readHTML([type])`
 
 * `type` String (optional)
 
 클립보드 콘텐츠를 `markup`으로 반환합니다.
 
-### `clipboard.writeHtml(markup[, type])`
+### `clipboard.writeHTML(markup[, type])`
 
 * `markup` String
 * `type` String (optional)
@@ -63,18 +63,31 @@ console.log(clipboard.readText('selection'));
 
 클립보드에 `image`를 씁니다.
 
-### `clipboard.readRtf([type])`
+### `clipboard.readRTF([type])`
 
 * `type` String (optional)
 
 클립보드로부터 RTF 형식으로 콘텐츠를 읽어옵니다.
 
-### `clipboard.writeRtf(text[, type])`
+### `clipboard.writeRTF(text[, type])`
 
 * `text` String
 * `type` String (optional)
 
 클립보드에 `text`를 RTF 형식으로 씁니다.
+
+### `clipboard.readBookmark()` _macOS_ _Windows_
+
+클립보드로부터 북마크 형식으로 표현된 `title`와 `url` 키를 담은 객체를 반환합니다.
+`title`과 `url` 값들은 북마크를 사용할 수 없을 때 빈 문자열을 포함합니다.
+
+### `clipboard.writeBookmark(title, url[, type])` _macOS_ _Windows_
+
+* `title` String
+* `url` String
+* `type` String (optional)
+
+`title`과 `url`을 클립보드에 북마크 형식으로 씁니다.
 
 ### `clipboard.clear([type])`
 
@@ -110,6 +123,8 @@ console.log(clipboard.has('<p>selection</p>'));
   * `text` String
   * `html` String
   * `image` [NativeImage](native-image.md)
+  * `rtf` String
+  * `bookmark` String - `text`에 있는 URL의 텍스트.
 * `type` String (optional)
 
 ```javascript

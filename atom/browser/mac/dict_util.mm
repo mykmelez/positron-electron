@@ -10,13 +10,11 @@
 
 namespace atom {
 
-namespace {
-
-scoped_ptr<base::ListValue> NSArrayToListValue(NSArray* arr) {
+std::unique_ptr<base::ListValue> NSArrayToListValue(NSArray* arr) {
   if (!arr)
     return nullptr;
 
-  scoped_ptr<base::ListValue> result(new base::ListValue);
+  std::unique_ptr<base::ListValue> result(new base::ListValue);
   for (id value in arr) {
     if ([value isKindOfClass:[NSString class]]) {
       result->AppendString(base::SysNSStringToUTF8(value));
@@ -31,13 +29,13 @@ scoped_ptr<base::ListValue> NSArrayToListValue(NSArray* arr) {
       else
         result->AppendInteger([value intValue]);
     } else if ([value isKindOfClass:[NSArray class]]) {
-      scoped_ptr<base::ListValue> sub_arr = NSArrayToListValue(value);
+      std::unique_ptr<base::ListValue> sub_arr = NSArrayToListValue(value);
       if (sub_arr)
         result->Append(std::move(sub_arr));
       else
         result->Append(base::Value::CreateNullValue());
     } else if ([value isKindOfClass:[NSDictionary class]]) {
-      scoped_ptr<base::DictionaryValue> sub_dict =
+      std::unique_ptr<base::DictionaryValue> sub_dict =
           NSDictionaryToDictionaryValue(value);
       if (sub_dict)
         result->Append(std::move(sub_dict));
@@ -50,8 +48,6 @@ scoped_ptr<base::ListValue> NSArrayToListValue(NSArray* arr) {
 
   return result;
 }
-
-}  // namespace
 
 NSDictionary* DictionaryValueToNSDictionary(const base::DictionaryValue& value) {
   std::string json;
@@ -66,12 +62,12 @@ NSDictionary* DictionaryValueToNSDictionary(const base::DictionaryValue& value) 
   return obj;
 }
 
-scoped_ptr<base::DictionaryValue> NSDictionaryToDictionaryValue(
+std::unique_ptr<base::DictionaryValue> NSDictionaryToDictionaryValue(
     NSDictionary* dict) {
   if (!dict)
     return nullptr;
 
-  scoped_ptr<base::DictionaryValue> result(new base::DictionaryValue);
+  std::unique_ptr<base::DictionaryValue> result(new base::DictionaryValue);
   for (id key in dict) {
     std::string str_key = base::SysNSStringToUTF8(
         [key isKindOfClass:[NSString class]] ? key : [key description]);
@@ -91,14 +87,14 @@ scoped_ptr<base::DictionaryValue> NSDictionaryToDictionaryValue(
       else
         result->SetIntegerWithoutPathExpansion(str_key, [value intValue]);
     } else if ([value isKindOfClass:[NSArray class]]) {
-      scoped_ptr<base::ListValue> sub_arr = NSArrayToListValue(value);
+      std::unique_ptr<base::ListValue> sub_arr = NSArrayToListValue(value);
       if (sub_arr)
         result->SetWithoutPathExpansion(str_key, std::move(sub_arr));
       else
         result->SetWithoutPathExpansion(str_key,
                                         base::Value::CreateNullValue());
     } else if ([value isKindOfClass:[NSDictionary class]]) {
-      scoped_ptr<base::DictionaryValue> sub_dict =
+      std::unique_ptr<base::DictionaryValue> sub_dict =
           NSDictionaryToDictionaryValue(value);
       if (sub_dict)
         result->SetWithoutPathExpansion(str_key, std::move(sub_dict));

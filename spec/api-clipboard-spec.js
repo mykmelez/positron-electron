@@ -24,20 +24,38 @@ describe('clipboard module', function () {
     })
   })
 
-  describe('clipboard.readHtml()', function () {
+  describe('clipboard.readHTML()', function () {
     it('returns markup correctly', function () {
       var text = '<string>Hi</string>'
       var markup = process.platform === 'darwin' ? "<meta charset='utf-8'><string>Hi</string>" : process.platform === 'linux' ? '<meta http-equiv="content-type" ' + 'content="text/html; charset=utf-8"><string>Hi</string>' : '<string>Hi</string>'
-      clipboard.writeHtml(text)
-      assert.equal(clipboard.readHtml(), markup)
+      clipboard.writeHTML(text)
+      assert.equal(clipboard.readHTML(), markup)
     })
   })
 
-  describe('clipboard.readRtf', function () {
+  describe('clipboard.readRTF', function () {
     it('returns rtf text correctly', function () {
       var rtf = '{\\rtf1\\ansi{\\fonttbl\\f0\\fswiss Helvetica;}\\f0\\pard\nThis is some {\\b bold} text.\\par\n}'
-      clipboard.writeRtf(rtf)
-      assert.equal(clipboard.readRtf(), rtf)
+      clipboard.writeRTF(rtf)
+      assert.equal(clipboard.readRTF(), rtf)
+    })
+  })
+
+  describe('clipboard.readBookmark', function () {
+    it('returns title and url', function () {
+      if (process.platform === 'linux') return
+
+      clipboard.writeBookmark('a title', 'http://electron.atom.io')
+      assert.deepEqual(clipboard.readBookmark(), {
+        title: 'a title',
+        url: 'http://electron.atom.io'
+      })
+
+      clipboard.writeText('no bookmark')
+      assert.deepEqual(clipboard.readBookmark(), {
+        title: '',
+        url: ''
+      })
     })
   })
 
@@ -48,16 +66,22 @@ describe('clipboard module', function () {
       var p = path.join(fixtures, 'assets', 'logo.png')
       var i = nativeImage.createFromPath(p)
       var markup = process.platform === 'darwin' ? "<meta charset='utf-8'><b>Hi</b>" : process.platform === 'linux' ? '<meta http-equiv="content-type" ' + 'content="text/html; charset=utf-8"><b>Hi</b>' : '<b>Hi</b>'
+      var bookmark = {title: 'a title', url: 'test'}
       clipboard.write({
         text: 'test',
         html: '<b>Hi</b>',
         rtf: '{\\rtf1\\utf8 text}',
+        bookmark: 'a title',
         image: p
       })
       assert.equal(clipboard.readText(), text)
-      assert.equal(clipboard.readHtml(), markup)
-      assert.equal(clipboard.readRtf(), rtf)
+      assert.equal(clipboard.readHTML(), markup)
+      assert.equal(clipboard.readRTF(), rtf)
       assert.equal(clipboard.readImage().toDataURL(), i.toDataURL())
+
+      if (process.platform !== 'linux') {
+        assert.deepEqual(clipboard.readBookmark(), bookmark)
+      }
     })
   })
 })

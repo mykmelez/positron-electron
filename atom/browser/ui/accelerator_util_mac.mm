@@ -29,10 +29,14 @@ void SetPlatformAccelerator(ui::Accelerator* accelerator) {
     modifiers ^= NSShiftKeyMask;
   }
 
+  if (character == NSDeleteFunctionKey) {
+    character = NSDeleteCharacter;
+  }
+
   NSString* characters =
       [[[NSString alloc] initWithCharacters:&character length:1] autorelease];
 
-  scoped_ptr<ui::PlatformAccelerator> platform_accelerator(
+  std::unique_ptr<ui::PlatformAccelerator> platform_accelerator(
       new ui::PlatformAcceleratorCocoa(characters, modifiers));
   accelerator->set_platform_accelerator(std::move(platform_accelerator));
 }

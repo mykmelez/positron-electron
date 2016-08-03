@@ -5,12 +5,12 @@
 #ifndef ATOM_COMMON_ASAR_ARCHIVE_H_
 #define ATOM_COMMON_ASAR_ARCHIVE_H_
 
+#include <memory>
 #include <vector>
 
 #include "base/containers/scoped_ptr_hash_map.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
-#include "base/memory/scoped_ptr.h"
 
 namespace base {
 class DictionaryValue;
@@ -72,10 +72,10 @@ class Archive {
   base::File file_;
   int fd_;
   uint32_t header_size_;
-  scoped_ptr<base::DictionaryValue> header_;
+  std::unique_ptr<base::DictionaryValue> header_;
 
   // Cached external temporary files.
-  base::ScopedPtrHashMap<base::FilePath, scoped_ptr<ScopedTemporaryFile>>
+  base::ScopedPtrHashMap<base::FilePath, std::unique_ptr<ScopedTemporaryFile>>
       external_files_;
 
   DISALLOW_COPY_AND_ASSIGN(Archive);

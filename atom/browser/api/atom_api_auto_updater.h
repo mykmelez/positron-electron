@@ -10,6 +10,7 @@
 #include "atom/browser/api/event_emitter.h"
 #include "atom/browser/auto_updater.h"
 #include "atom/browser/window_list_observer.h"
+#include "native_mate/arguments.h"
 #include "native_mate/handle.h"
 
 namespace atom {
@@ -23,7 +24,7 @@ class AutoUpdater : public mate::EventEmitter<AutoUpdater>,
   static mate::Handle<AutoUpdater> Create(v8::Isolate* isolate);
 
   static void BuildPrototype(v8::Isolate* isolate,
-                             v8::Local<v8::ObjectTemplate> prototype);
+                             v8::Local<v8::FunctionTemplate> prototype);
 
  protected:
   explicit AutoUpdater(v8::Isolate* isolate);
@@ -43,6 +44,8 @@ class AutoUpdater : public mate::EventEmitter<AutoUpdater>,
   void OnWindowAllClosed() override;
 
  private:
+  std::string GetFeedURL();
+  void SetFeedURL(const std::string& url, mate::Arguments* args);
   void QuitAndInstall();
 
   DISALLOW_COPY_AND_ASSIGN(AutoUpdater);

@@ -24,10 +24,12 @@ class DownloadItem : public mate::TrackableObject<DownloadItem>,
                                            content::DownloadItem* item);
 
   static void BuildPrototype(v8::Isolate* isolate,
-                             v8::Local<v8::ObjectTemplate> prototype);
+                             v8::Local<v8::FunctionTemplate> prototype);
 
   void Pause();
+  bool IsPaused() const;
   void Resume();
+  bool CanResume() const;
   void Cancel();
   int64_t GetReceivedBytes() const;
   int64_t GetTotalBytes() const;
@@ -36,6 +38,8 @@ class DownloadItem : public mate::TrackableObject<DownloadItem>,
   std::string GetFilename() const;
   std::string GetContentDisposition() const;
   const GURL& GetURL() const;
+  content::DownloadItem::DownloadState GetState() const;
+  bool IsDone() const;
   void SetSavePath(const base::FilePath& path);
   base::FilePath GetSavePath() const;
 

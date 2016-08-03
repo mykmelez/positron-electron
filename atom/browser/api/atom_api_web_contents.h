@@ -43,6 +43,14 @@ class WebContents : public mate::TrackableObject<WebContents>,
                     public CommonWebContentsDelegate,
                     public content::WebContentsObserver {
  public:
+  enum Type {
+    BACKGROUND_PAGE,  // A DevTools extension background page.
+    BROWSER_WINDOW,  // Used by BrowserWindow.
+    REMOTE,  // Thin wrap around an existing WebContents.
+    WEB_VIEW,  // Used by <webview>.
+    OFF_SCREEN,  // Used for offscreen rendering
+  };
+
   // For node.js callback function type: function(error, buffer)
   using PrintToPDFCallback =
       base::Callback<void(v8::Local<v8::Value>, v8::Local<v8::Value>)>;
@@ -56,9 +64,10 @@ class WebContents : public mate::TrackableObject<WebContents>,
       v8::Isolate* isolate, const mate::Dictionary& options);
 
   static void BuildPrototype(v8::Isolate* isolate,
-                             v8::Local<v8::ObjectTemplate> prototype);
+                             v8::Local<v8::FunctionTemplate> prototype);
 
   int GetID() const;
+  Type GetType() const;
   bool Equal(const WebContents* web_contents) const;
   void LoadURL(const GURL& url, const mate::Dictionary& options);
   void DownloadURL(const GURL& url);
@@ -73,7 +82,7 @@ class WebContents : public mate::TrackableObject<WebContents>,
   void GoForward();
   void GoToOffset(int offset);
   bool IsCrashed() const;
-  void SetUserAgent(const std::string& user_agent);
+  void SetUserAgent(const std::string& user_agent, mate::Arguments* args);
   std::string GetUserAgent();
   void InsertCSS(const std::string& css);
   bool SavePage(const base::FilePath& full_file_path,
@@ -116,26 +125,47 @@ class WebContents : public mate::TrackableObject<WebContents>,
   void ReplaceMisspelling(const base::string16& word);
   uint32_t FindInPage(mate::Arguments* args);
   void StopFindInPage(content::StopFindAction action);
+  void ShowDefinitionForSelection();
+  void CopyImageAt(int x, int y);
 
   // Focus.
   void Focus();
+  bool IsFocused() const;
   void TabTraverse(bool reverse);
 
   // Send messages to browser.
-  bool SendIPCMessage(const base::string16& channel,
+  bool SendIPCMessage(bool all_frames,
+                      const base::string16& channel,
                       const base::ListValue& args);
 
   // Send WebInputEvent to the page.
   void SendInputEvent(v8::Isolate* isolate, v8::Local<v8::Value> input_event);
 
   // Subscribe to the frame updates.
-  void BeginFrameSubscription(
-      const FrameSubscriber::FrameCaptureCallback& callback);
+  void BeginFrameSubscription(mate::Arguments* args);
   void EndFrameSubscription();
+
+  // Dragging native items.
+  void StartDrag(const mate::Dictionary& item, mate::Arguments* args);
+
+  // Captures the page with |rect|, |callback| would be called when capturing is
+  // done.
+  void CapturePage(mate::Arguments* args);
 
   // Methods for creating <webview>.
   void SetSize(const SetSizeParams& params);
   bool IsGuest() const;
+
+  // Methods for offscreen rendering
+  bool IsOffScreen() const;
+  void OnPaint(const gfx::Rect& dirty_rect,
+               const gfx::Size& bitmap_size,
+               void* bitmap_pixels);
+  void StartPainting();
+  void StopPainting();
+  bool IsPainting() const;
+  void SetFrameRate(int frame_rate);
+  int GetFrameRate() const;
 
   // Callback triggered on permission response.
   void OnEnterFullscreenModeForTab(content::WebContents* source,
@@ -181,6 +211,7 @@ class WebContents : public mate::TrackableObject<WebContents>,
                     const gfx::Rect& pos) override;
   void CloseContents(content::WebContents* source) override;
   void ActivateContents(content::WebContents* contents) override;
+  void UpdateTargetURL(content::WebContents* source, const GURL& url) override;
   bool IsPopupOrPanel(const content::WebContents* source) const override;
   void HandleKeyboardEvent(
       content::WebContents* source,
@@ -210,6 +241,9 @@ class WebContents : public mate::TrackableObject<WebContents>,
       content::WebContents* web_contents,
       bool user_gesture,
       bool last_unlocked_by_target) override;
+  std::unique_ptr<content::BluetoothChooser> RunBluetoothChooser(
+      content::RenderFrameHost* frame,
+      const content::BluetoothChooser::EventHandler& handler) override;
 
   // content::WebContentsObserver:
   void BeforeUnloadFired(const base::TimeTicks& proceed_time) override;
@@ -224,11 +258,6 @@ class WebContents : public mate::TrackableObject<WebContents>,
                    int error_code,
                    const base::string16& error_description,
                    bool was_ignored_by_handler) override;
-  void DidFailProvisionalLoad(content::RenderFrameHost* render_frame_host,
-                              const GURL& validated_url,
-                              int error_code,
-                              const base::string16& error_description,
-                              bool was_ignored_by_handler) override;
   void DidStartLoading() override;
   void DidStopLoading() override;
   void DidGetResourceResponseStart(
@@ -236,9 +265,8 @@ class WebContents : public mate::TrackableObject<WebContents>,
   void DidGetRedirectForResourceRequest(
       content::RenderFrameHost* render_frame_host,
       const content::ResourceRedirectDetails& details) override;
-  void DidNavigateMainFrame(
-      const content::LoadCommittedDetails& details,
-      const content::FrameNavigateParams& params) override;
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override;
   bool OnMessageReceived(const IPC::Message& message) override;
   void WebContentsDestroyed() override;
   void NavigationEntryCommitted(
@@ -261,12 +289,6 @@ class WebContents : public mate::TrackableObject<WebContents>,
   void DevToolsClosed() override;
 
  private:
-  enum Type {
-    BROWSER_WINDOW,  // Used by BrowserWindow.
-    WEB_VIEW,  // Used by <webview>.
-    REMOTE,  // Thin wrap around an existing WebContents.
-  };
-
   AtomBrowserContext* GetBrowserContext() const;
 
   uint32_t GetNextRequestId() {
@@ -289,7 +311,7 @@ class WebContents : public mate::TrackableObject<WebContents>,
   v8::Global<v8::Value> devtools_web_contents_;
   v8::Global<v8::Value> debugger_;
 
-  scoped_ptr<WebViewGuestDelegate> guest_delegate_;
+  std::unique_ptr<WebViewGuestDelegate> guest_delegate_;
 
   // The host webcontents that may contain this webcontents.
   WebContents* embedder_;

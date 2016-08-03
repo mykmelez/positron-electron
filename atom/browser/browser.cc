@@ -118,6 +118,10 @@ void Browser::SetName(const std::string& name) {
   name_override_ = name;
 }
 
+int Browser::GetBadgeCount() {
+  return badge_count_;
+}
+
 bool Browser::OpenFile(const std::string& file_path) {
   bool prevent_default = false;
   FOR_EACH_OBSERVER(BrowserObserver,
@@ -151,8 +155,18 @@ void Browser::DidFinishLaunching() {
   FOR_EACH_OBSERVER(BrowserObserver, observers_, OnFinishLaunching());
 }
 
-void Browser::RequestLogin(LoginHandler* login_handler) {
-  FOR_EACH_OBSERVER(BrowserObserver, observers_, OnLogin(login_handler));
+void Browser::OnAccessibilitySupportChanged() {
+  FOR_EACH_OBSERVER(BrowserObserver,
+                    observers_,
+                    OnAccessibilitySupportChanged());
+}
+
+void Browser::RequestLogin(
+    LoginHandler* login_handler,
+    std::unique_ptr<base::DictionaryValue> request_details) {
+  FOR_EACH_OBSERVER(BrowserObserver,
+                    observers_,
+                    OnLogin(login_handler, *(request_details.get())));
 }
 
 void Browser::NotifyAndShutdown() {

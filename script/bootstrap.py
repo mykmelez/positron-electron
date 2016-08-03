@@ -7,7 +7,7 @@ import sys
 
 from lib.config import LIBCHROMIUMCONTENT_COMMIT, BASE_URL, PLATFORM, \
                        enable_verbose_mode, is_verbose_mode, get_target_arch
-from lib.util import execute_stdout, get_atom_shell_version, scoped_cwd
+from lib.util import execute_stdout, get_electron_version, scoped_cwd
 
 
 SOURCE_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
@@ -65,7 +65,7 @@ def main():
 
   create_chrome_version_h()
   touch_config_gypi()
-  run_update(defines, args.disable_clang, args.clang_dir)
+  run_update(defines, args.msvs)
   update_electron_modules('spec', args.target_arch)
 
 
@@ -86,6 +86,8 @@ def parse_args():
                       action='store_true',
                       help='Run non-interactively by assuming "yes" to all ' \
                            'prompts.')
+  parser.add_argument('--msvs', action='store_true',
+                      help='Generate Visual Studio project')
   parser.add_argument('--target_arch', default=get_target_arch(),
                       help='Manually specify the arch to build for')
   parser.add_argument('--clang_dir', default='', help='Path to clang binaries')
@@ -184,7 +186,7 @@ def update_node_modules(dirname, env=None):
 def update_electron_modules(dirname, target_arch):
   env = os.environ.copy()
   env['npm_config_arch']    = target_arch
-  env['npm_config_target']  = get_atom_shell_version()
+  env['npm_config_target']  = get_electron_version()
   env['npm_config_disturl'] = 'https://atom.io/download/atom-shell'
   update_node_modules(dirname, env)
 
@@ -196,7 +198,8 @@ def update_win32_python():
 
 
 def build_libchromiumcontent(verbose, target_arch, defines):
-  args = [os.path.join(SOURCE_ROOT, 'script', 'build-libchromiumcontent.py')]
+  args = [sys.executable,
+          os.path.join(SOURCE_ROOT, 'script', 'build-libchromiumcontent.py')]
   if verbose:
     args += ['-v']
   if defines:
@@ -248,14 +251,14 @@ def touch_config_gypi():
       f.write(content)
 
 
-def run_update(defines, disable_clang, clang_dir):
-  env = os.environ.copy()
-  if not disable_clang and clang_dir == '':
-    # Build with prebuilt clang.
-    set_clang_env(env)
+def run_update(defines, msvs):
+  args = [sys.executable, os.path.join(SOURCE_ROOT, 'script', 'update.py')]
+  if defines:
+    args += ['--defines', defines]
+  if msvs:
+    args += ['--msvs']
 
-  update = os.path.join(SOURCE_ROOT, 'script', 'update.py')
-  execute_stdout([sys.executable, update, '--defines', defines], env)
+  execute_stdout(args)
 
 
 if __name__ == '__main__':

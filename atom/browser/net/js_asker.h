@@ -5,6 +5,7 @@
 #ifndef ATOM_BROWSER_NET_JS_ASKER_H_
 #define ATOM_BROWSER_NET_JS_ASKER_H_
 
+#include "atom/common/native_mate_converters/net_converter.h"
 #include "base/callback.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
@@ -19,19 +20,19 @@
 namespace atom {
 
 using JavaScriptHandler =
-    base::Callback<void(const net::URLRequest*, v8::Local<v8::Value>)>;
+    base::Callback<void(const base::DictionaryValue&, v8::Local<v8::Value>)>;
 
 namespace internal {
 
 using BeforeStartCallback =
     base::Callback<void(v8::Isolate*, v8::Local<v8::Value>)>;
 using ResponseCallback =
-    base::Callback<void(bool, scoped_ptr<base::Value> options)>;
+    base::Callback<void(bool, std::unique_ptr<base::Value> options)>;
 
 // Ask handler for options in UI thread.
 void AskForOptions(v8::Isolate* isolate,
                    const JavaScriptHandler& handler,
-                   net::URLRequest* request,
+                   std::unique_ptr<base::DictionaryValue> request_details,
                    const BeforeStartCallback& before_start,
                    const ResponseCallback& callback);
 
@@ -58,7 +59,7 @@ class JsAsker : public RequestJob {
 
   // Subclass should do initailze work here.
   virtual void BeforeStartInUI(v8::Isolate*, v8::Local<v8::Value>) {}
-  virtual void StartAsync(scoped_ptr<base::Value> options) = 0;
+  virtual void StartAsync(std::unique_ptr<base::Value> options) = 0;
 
   net::URLRequestContextGetter* request_context_getter() const {
     return request_context_getter_;
@@ -67,12 +68,15 @@ class JsAsker : public RequestJob {
  private:
   // RequestJob:
   void Start() override {
+    std::unique_ptr<base::DictionaryValue> request_details(
+        new base::DictionaryValue);
+    FillRequestDetails(request_details.get(), RequestJob::request());
     content::BrowserThread::PostTask(
         content::BrowserThread::UI, FROM_HERE,
         base::Bind(&internal::AskForOptions,
                    isolate_,
                    handler_,
-                   RequestJob::request(),
+                   base::Passed(&request_details),
                    base::Bind(&JsAsker::BeforeStartInUI,
                               weak_factory_.GetWeakPtr()),
                    base::Bind(&JsAsker::OnResponse,
@@ -84,7 +88,7 @@ class JsAsker : public RequestJob {
 
   // Called when the JS handler has sent the response, we need to decide whether
   // to start, or fail the job.
-  void OnResponse(bool success, scoped_ptr<base::Value> value) {
+  void OnResponse(bool success, std::unique_ptr<base::Value> value) {
     int error = net::ERR_NOT_IMPLEMENTED;
     if (success && value && !internal::IsErrorOptions(value.get(), &error)) {
       StartAsync(std::move(value));

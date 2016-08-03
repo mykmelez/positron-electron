@@ -20,7 +20,7 @@ class DesktopCapturer: public mate::EventEmitter<DesktopCapturer>,
   static mate::Handle<DesktopCapturer> Create(v8::Isolate* isolate);
 
   static void BuildPrototype(v8::Isolate* isolate,
-                             v8::Local<v8::ObjectTemplate> prototype);
+                             v8::Local<v8::FunctionTemplate> prototype);
 
   void StartHandling(bool capture_window,
                      bool capture_screen,
@@ -39,7 +39,7 @@ class DesktopCapturer: public mate::EventEmitter<DesktopCapturer>,
   bool OnRefreshFinished() override;
 
  private:
-  scoped_ptr<DesktopMediaList> media_list_;
+  std::unique_ptr<DesktopMediaList> media_list_;
 
   DISALLOW_COPY_AND_ASSIGN(DesktopCapturer);
 };

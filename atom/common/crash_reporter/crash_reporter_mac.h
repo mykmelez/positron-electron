@@ -10,7 +10,6 @@
 
 #include "atom/common/crash_reporter/crash_reporter.h"
 #include "base/compiler_specific.h"
-#include "base/memory/scoped_ptr.h"
 #include "base/strings/string_piece.h"
 #include "vendor/crashpad/client/simple_string_dictionary.h"
 
@@ -45,7 +44,7 @@ class CrashReporterMac : public CrashReporter {
   std::vector<UploadReportResult> GetUploadedReports(
       const std::string& path) override;
 
-  scoped_ptr<crashpad::SimpleStringDictionary> simple_string_dictionary_;
+  std::unique_ptr<crashpad::SimpleStringDictionary> simple_string_dictionary_;
 
   DISALLOW_COPY_AND_ASSIGN(CrashReporterMac);
 };

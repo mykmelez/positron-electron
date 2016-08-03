@@ -45,13 +45,13 @@ using ResponseHeadersContainer =
     std::pair<scoped_refptr<net::HttpResponseHeaders>*, const std::string&>;
 
 void RunSimpleListener(const AtomNetworkDelegate::SimpleListener& listener,
-                       scoped_ptr<base::DictionaryValue> details) {
+                       std::unique_ptr<base::DictionaryValue> details) {
   return listener.Run(*(details.get()));
 }
 
 void RunResponseListener(
     const AtomNetworkDelegate::ResponseListener& listener,
-    scoped_ptr<base::DictionaryValue> details,
+    std::unique_ptr<base::DictionaryValue> details,
     const AtomNetworkDelegate::ResponseCallback& callback) {
   return listener.Run(*(details.get()), callback);
 }
@@ -71,23 +71,18 @@ bool MatchesFilterCondition(net::URLRequest* request,
 
 // Overloaded by multiple types to fill the |details| object.
 void ToDictionary(base::DictionaryValue* details, net::URLRequest* request) {
+  FillRequestDetails(details, request);
   details->SetInteger("id", request->identifier());
-  details->SetString("url", request->url().spec());
-  details->SetString("method", request->method());
   details->SetDouble("timestamp", base::Time::Now().ToDoubleT() * 1000);
   auto info = content::ResourceRequestInfo::ForRequest(request);
   details->SetString("resourceType",
                      info ? ResourceTypeToString(info->GetResourceType())
                           : "other");
-  scoped_ptr<base::ListValue> list(new base::ListValue);
-  GetUploadData(list.get(), request);
-  if (!list->empty())
-    details->Set("uploadData", std::move(list));
 }
 
 void ToDictionary(base::DictionaryValue* details,
                   const net::HttpRequestHeaders& headers) {
-  scoped_ptr<base::DictionaryValue> dict(new base::DictionaryValue);
+  std::unique_ptr<base::DictionaryValue> dict(new base::DictionaryValue);
   net::HttpRequestHeaders::Iterator it(headers);
   while (it.GetNext())
     dict->SetString(it.name(), it.value());
@@ -99,7 +94,7 @@ void ToDictionary(base::DictionaryValue* details,
   if (!headers)
     return;
 
-  scoped_ptr<base::DictionaryValue> dict(new base::DictionaryValue);
+  std::unique_ptr<base::DictionaryValue> dict(new base::DictionaryValue);
   size_t iter = 0;
   std::string key;
   std::string value;
@@ -109,7 +104,7 @@ void ToDictionary(base::DictionaryValue* details,
       if (dict->GetList(key, &values))
         values->AppendString(value);
     } else {
-      scoped_ptr<base::ListValue> values(new base::ListValue);
+      std::unique_ptr<base::ListValue> values(new base::ListValue);
       values->AppendString(value);
       dict->Set(key, std::move(values));
     }
@@ -369,7 +364,7 @@ int AtomNetworkDelegate::HandleResponseEvent(
   if (!MatchesFilterCondition(request, info.url_patterns))
     return net::OK;
 
-  scoped_ptr<base::DictionaryValue> details(new base::DictionaryValue);
+  std::unique_ptr<base::DictionaryValue> details(new base::DictionaryValue);
   FillDetailsObject(details.get(), request, args...);
 
   // The |request| could be destroyed before the |callback| is called.
@@ -392,7 +387,7 @@ void AtomNetworkDelegate::HandleSimpleEvent(
   if (!MatchesFilterCondition(request, info.url_patterns))
     return;
 
-  scoped_ptr<base::DictionaryValue> details(new base::DictionaryValue);
+  std::unique_ptr<base::DictionaryValue> details(new base::DictionaryValue);
   FillDetailsObject(details.get(), request, args...);
 
   BrowserThread::PostTask(
@@ -402,7 +397,7 @@ void AtomNetworkDelegate::HandleSimpleEvent(
 
 template<typename T>
 void AtomNetworkDelegate::OnListenerResultInIO(
-    uint64_t id, T out, scoped_ptr<base::DictionaryValue> response) {
+    uint64_t id, T out, std::unique_ptr<base::DictionaryValue> response) {
   // The request has been destroyed.
   if (!ContainsKey(callbacks_, id))
     return;
@@ -417,7 +412,7 @@ void AtomNetworkDelegate::OnListenerResultInIO(
 template<typename T>
 void AtomNetworkDelegate::OnListenerResultInUI(
     uint64_t id, T out, const base::DictionaryValue& response) {
-  scoped_ptr<base::DictionaryValue> copy = response.CreateDeepCopy();
+  std::unique_ptr<base::DictionaryValue> copy = response.CreateDeepCopy();
   BrowserThread::PostTask(
       BrowserThread::IO, FROM_HERE,
       base::Bind(&AtomNetworkDelegate::OnListenerResultInIO<T>,

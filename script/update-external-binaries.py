@@ -8,9 +8,9 @@ from lib.config import get_target_arch
 from lib.util import safe_mkdir, rm_rf, extract_zip, tempdir, download
 
 
-VERSION = 'v1.0.0'
+VERSION = 'v1.1.0'
 SOURCE_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-FRAMEWORKS_URL = 'http://github.com/atom/atom-shell-frameworks/releases' \
+FRAMEWORKS_URL = 'http://github.com/electron/electron-frameworks/releases' \
                  '/download/' + VERSION
 
 

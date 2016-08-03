@@ -70,7 +70,7 @@ void PowerSaveBlocker::UpdatePowerSaveBlocker() {
   }
 
   if (!power_save_blocker_ || new_blocker_type != current_blocker_type_) {
-    scoped_ptr<content::PowerSaveBlocker> new_blocker =
+    std::unique_ptr<content::PowerSaveBlocker> new_blocker =
         content::PowerSaveBlocker::Create(
             new_blocker_type,
             content::PowerSaveBlocker::kReasonOther,
@@ -105,8 +105,9 @@ mate::Handle<PowerSaveBlocker> PowerSaveBlocker::Create(v8::Isolate* isolate) {
 
 // static
 void PowerSaveBlocker::BuildPrototype(
-    v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> prototype) {
-  mate::ObjectTemplateBuilder(isolate, prototype)
+    v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> prototype) {
+  prototype->SetClassName(mate::StringToV8(isolate, "PowerSaveBlocker"));
+  mate::ObjectTemplateBuilder(isolate, prototype->PrototypeTemplate())
       .SetMethod("start", &PowerSaveBlocker::Start)
       .SetMethod("stop", &PowerSaveBlocker::Stop)
       .SetMethod("isStarted", &PowerSaveBlocker::IsStarted);

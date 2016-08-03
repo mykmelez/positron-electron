@@ -9,7 +9,7 @@ discovered security threats.
 When working with Electron, it is important to understand that Electron is not
 a web browser. It allows you to build feature-rich desktop applications with
 familiar web technologies, but your code wields much greater power. JavaScript
-can access to the filesystem, the user shell, and more. This allows you to build
+can access the filesystem, user shell, and more. This allows you to build
 high quality native applications, but the inherent security risks scale with the
 additional powers granted to your code.
 
@@ -56,8 +56,8 @@ This is not bulletproof, but at the least, you should attempt the following:
   (using `webPreferences`)
 * Do not disable `webSecurity`. Disabling it will disable the same-origin policy.
 * Define a [`Content-Security-Policy`](http://www.html5rocks.com/en/tutorials/security/content-security-policy/)
-, and use restrictive rules (ie: `script-src 'self'`)
-* [Override and disable `eval`](https://github.com/nylas/N1/blob/0abc5d5defcdb057120d726b271933425b75b415/static/index.js#L6)
+, and use restrictive rules (i.e. `script-src 'self'`)
+* [Override and disable `eval`](https://github.com/nylas/N1/blob/0abc5d5defcdb057120d726b271933425b75b415/static/index.js#L6-L8)
 , which allows strings to be executed as code.
 * Do not set `allowDisplayingInsecureContent` to true.
 * Do not set `allowRunningInsecureContent` to true.

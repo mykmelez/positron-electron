@@ -22,15 +22,16 @@ class Archive : public mate::Wrappable<Archive> {
  public:
   static v8::Local<v8::Value> Create(v8::Isolate* isolate,
                                       const base::FilePath& path) {
-    scoped_ptr<asar::Archive> archive(new asar::Archive(path));
+    std::unique_ptr<asar::Archive> archive(new asar::Archive(path));
     if (!archive->Init())
       return v8::False(isolate);
     return (new Archive(isolate, std::move(archive)))->GetWrapper();
   }
 
   static void BuildPrototype(
-      v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> prototype) {
-    mate::ObjectTemplateBuilder(isolate, prototype)
+      v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> prototype) {
+    prototype->SetClassName(mate::StringToV8(isolate, "Archive"));
+    mate::ObjectTemplateBuilder(isolate, prototype->PrototypeTemplate())
         .SetProperty("path", &Archive::GetPath)
         .SetMethod("getFileInfo", &Archive::GetFileInfo)
         .SetMethod("stat", &Archive::Stat)
@@ -42,7 +43,7 @@ class Archive : public mate::Wrappable<Archive> {
   }
 
  protected:
-  Archive(v8::Isolate* isolate, scoped_ptr<asar::Archive> archive)
+  Archive(v8::Isolate* isolate, std::unique_ptr<asar::Archive> archive)
       : archive_(std::move(archive)) {
     Init(isolate);
   }
@@ -120,7 +121,7 @@ class Archive : public mate::Wrappable<Archive> {
   }
 
  private:
-  scoped_ptr<asar::Archive> archive_;
+  std::unique_ptr<asar::Archive> archive_;
 
   DISALLOW_COPY_AND_ASSIGN(Archive);
 };

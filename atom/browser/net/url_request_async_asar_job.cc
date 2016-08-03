@@ -16,7 +16,7 @@ URLRequestAsyncAsarJob::URLRequestAsyncAsarJob(
     : JsAsker<asar::URLRequestAsarJob>(request, network_delegate) {
 }
 
-void URLRequestAsyncAsarJob::StartAsync(scoped_ptr<base::Value> options) {
+void URLRequestAsyncAsarJob::StartAsync(std::unique_ptr<base::Value> options) {
   base::FilePath::StringType file_path;
   if (options->IsType(base::Value::TYPE_DICTIONARY)) {
     static_cast<base::DictionaryValue*>(options.get())->GetString(
@@ -40,7 +40,7 @@ void URLRequestAsyncAsarJob::StartAsync(scoped_ptr<base::Value> options) {
 
 void URLRequestAsyncAsarJob::GetResponseInfo(net::HttpResponseInfo* info) {
   std::string status("HTTP/1.1 200 OK");
-  net::HttpResponseHeaders* headers = new net::HttpResponseHeaders(status);
+  auto* headers = new net::HttpResponseHeaders(status);
 
   headers->AddHeader(kCORSHeader);
   info->headers = headers;

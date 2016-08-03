@@ -11,8 +11,12 @@
 #include "atom/browser/window_list.h"
 #include "base/mac/bundle_locations.h"
 #include "base/mac/foundation_util.h"
+#include "base/mac/mac_util.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/sys_string_conversions.h"
 #include "brightray/common/application_info.h"
+#include "net/base/mac/url_conversions.h"
+#include "url/gurl.h"
 
 namespace atom {
 
@@ -56,7 +60,7 @@ bool Browser::RemoveAsDefaultProtocolClient(const std::string& protocol) {
   if (!bundleList) {
     return false;
   }
-  // On Mac OS X, we can't query the default, but the handlers list seems to put
+  // On macOS, we can't query the default, but the handlers list seems to put
   // Apple's defaults first, so we'll use the first option that isn't our bundle
   CFStringRef other = nil;
   for (CFIndex i = 0; i < CFArrayGetCount(bundleList); i++) {
@@ -112,12 +116,22 @@ bool Browser::IsDefaultProtocolClient(const std::string& protocol) {
 void Browser::SetAppUserModelID(const base::string16& name) {
 }
 
-void Browser::SetUserActivity(
-    const std::string& type,
-    const base::DictionaryValue& user_info) {
+bool Browser::SetBadgeCount(int count) {
+  DockSetBadgeText(count != 0 ? base::IntToString(count) : "");
+  badge_count_ = count;
+  return true;
+}
+
+void Browser::SetUserActivity(const std::string& type,
+                              const base::DictionaryValue& user_info,
+                              mate::Arguments* args) {
+  std::string url_string;
+  args->GetNext(&url_string);
+
   [[AtomApplication sharedApplication]
       setCurrentActivity:base::SysUTF8ToNSString(type)
-            withUserInfo:DictionaryValueToNSDictionary(user_info)];
+            withUserInfo:DictionaryValueToNSDictionary(user_info)
+          withWebpageURL:net::NSURLWithGURL(GURL(url_string))];
 }
 
 std::string Browser::GetCurrentActivityType() {
@@ -126,14 +140,30 @@ std::string Browser::GetCurrentActivityType() {
   return base::SysNSStringToUTF8(userActivity.activityType);
 }
 
-bool Browser::ContinueUserActivity(
-    const std::string& type,
-    const base::DictionaryValue& user_info) {
+bool Browser::ContinueUserActivity(const std::string& type,
+                                   const base::DictionaryValue& user_info) {
   bool prevent_default = false;
   FOR_EACH_OBSERVER(BrowserObserver,
                     observers_,
                     OnContinueUserActivity(&prevent_default, type, user_info));
   return prevent_default;
+}
+
+Browser::LoginItemSettings Browser::GetLoginItemSettings() {
+  LoginItemSettings settings;
+  settings.open_at_login = base::mac::CheckLoginItemStatus(
+      &settings.open_as_hidden);
+  settings.restore_state = base::mac::WasLaunchedAsLoginItemRestoreState();
+  settings.opened_at_login = base::mac::WasLaunchedAsLoginOrResumeItem();
+  settings.opened_as_hidden = base::mac::WasLaunchedAsHiddenLoginItem();
+  return settings;
+}
+
+void Browser::SetLoginItemSettings(LoginItemSettings settings) {
+  if (settings.open_at_login)
+    base::mac::AddToLoginItems(settings.open_as_hidden);
+  else
+    base::mac::RemoveFromLoginItems();
 }
 
 std::string Browser::GetExecutableFileVersion() const {
@@ -178,6 +208,12 @@ void Browser::DockHide() {
   TransformProcessType(&psn, kProcessTransformToUIElementApplication);
 }
 
+bool Browser::DockIsVisible() {
+  // Because DockShow has a slight delay this may not be true immediately
+  // after that call.
+  return ([[NSRunningApplication currentApplication] activationPolicy] == NSApplicationActivationPolicyRegular);
+}
+
 void Browser::DockShow() {
   BOOL active = [[NSRunningApplication currentApplication] isActive];
   ProcessSerialNumber psn = { 0, kCurrentProcess };
@@ -204,7 +240,7 @@ void Browser::DockShow() {
   }
 }
 
-void Browser::DockSetMenu(ui::MenuModel* model) {
+void Browser::DockSetMenu(AtomMenuModel* model) {
   AtomApplicationDelegate* delegate = (AtomApplicationDelegate*)[NSApp delegate];
   [delegate setApplicationDockMenu:model];
 }

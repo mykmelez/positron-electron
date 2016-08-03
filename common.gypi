@@ -14,11 +14,14 @@
     'python': 'python',
     'openssl_fips': '',
     'openssl_no_asm': 1,
+    'use_openssl_def': 0,
+    'OPENSSL_PRODUCT': 'libopenssl.a',
     'node_release_urlbase': 'https://atom.io/download/atom-shell',
     'node_byteorder': '<!(node <(DEPTH)/tools/get-endianness.js)',
     'node_target_type': 'shared_library',
     'node_install_npm': 'false',
     'node_prefix': '',
+    'node_shared': 'true',
     'node_shared_cares': 'false',
     'node_shared_http_parser': 'false',
     'node_shared_libuv': 'false',
@@ -31,17 +34,20 @@
     'node_use_mdb': 'false',
     'node_use_openssl': 'true',
     'node_use_perfctr': 'false',
+    'node_use_v8_platform': 'false',
+    'node_use_bundled_v8': 'false',
     'uv_library': 'static_library',
     'uv_parent_path': 'vendor/node/deps/uv',
     'uv_use_dtrace': 'false',
     'V8_BASE': '',
     'v8_postmortem_support': 'false',
     'v8_enable_i18n_support': 'false',
+    'v8_inspector': 'false',
   },
   # Settings to compile node under Windows.
   'target_defaults': {
     'target_conditions': [
-      ['_target_name in ["libuv", "http_parser", "openssl", "cares", "node", "zlib"]', {
+      ['_target_name in ["libuv", "http_parser", "openssl", "openssl-cli", "cares", "node", "zlib"]', {
         'msvs_disabled_warnings': [
           4003,  # not enough actual parameters for macro 'V'
           4013,  # 'free' undefined; assuming extern returning int
@@ -124,7 +130,7 @@
         ],
         'conditions': [
           ['OS=="mac" and libchromiumcontent_component==0', {
-            # -all_load is the "whole-archive" on OS X.
+            # -all_load is the "whole-archive" on macOS.
             'xcode_settings': {
               'OTHER_LDFLAGS': [ '-Wl,-all_load' ],
             },
@@ -147,29 +153,32 @@
                   'conditions': [
                     ['target_arch=="ia32"', {
                       'reference_symbols': [
-                        '_u_errorName_54',
-                        '_ubidi_setPara_54',
-                        '_ucsdet_getName_54',
-                        '_uidna_openUTS46_54',
-                        '_ulocdata_close_54',
-                        '_unorm_normalize_54',
-                        '_uregex_matches_54',
-                        '_uscript_getCode_54',
-                        '_usearch_setPattern_54',
-                        '?createInstance@Transliterator@icu_54@@SAPAV12@ABVUnicodeString@2@W4UTransDirection@@AAW4UErrorCode@@@Z',
+                        '_u_errorName_56',
+                        '_ubidi_setPara_56',
+                        '_ucsdet_getName_56',
+                        '_uidna_openUTS46_56',
+                        '_ulocdata_close_56',
+                        '_unorm_normalize_56',
+                        '_uregex_matches_56',
+                        '_uscript_getCode_56',
+                        '_uspoof_open_56',
+                        '_usearch_setPattern_56',
+                        '?createInstance@Transliterator@icu_56@@SAPAV12@ABVUnicodeString@2@W4UTransDirection@@AAW4UErrorCode@@@Z',
+                        '??0MeasureFormat@icu_56@@QAE@ABVLocale@1@W4UMeasureFormatWidth@@AAW4UErrorCode@@@Z',
                       ],
                     }, {
                       'reference_symbols': [
-                        'u_errorName_54',
-                        'ubidi_setPara_54',
-                        'ucsdet_getName_54',
-                        'uidna_openUTS46_54',
-                        'ulocdata_close_54',
-                        'unorm_normalize_54',
-                        'uregex_matches_54',
-                        'uscript_getCode_54',
-                        'usearch_setPattern_54',
-                        '?createInstance@Transliterator@icu_54@@SAPEAV12@AEBVUnicodeString@2@W4UTransDirection@@AEAW4UErrorCode@@@Z',
+                        'u_errorName_56',
+                        'ubidi_setPara_56',
+                        'ucsdet_getName_56',
+                        'uidna_openUTS46_56',
+                        'ulocdata_close_56',
+                        'unorm_normalize_56',
+                        'uregex_matches_56',
+                        'uspoof_open_56',
+                        'usearch_setPattern_56',
+                        '?createInstance@Transliterator@icu_56@@SAPEAV12@AEBVUnicodeString@2@W4UTransDirection@@AEAW4UErrorCode@@@Z',
+                        '??0MeasureFormat@icu_56@@QEAA@AEBVLocale@1@W4UMeasureFormatWidth@@AEAW4UErrorCode@@@Z',
                       ],
                     }],
                   ],

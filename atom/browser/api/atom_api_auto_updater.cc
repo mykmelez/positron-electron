@@ -79,6 +79,12 @@ void AutoUpdater::OnWindowAllClosed() {
   QuitAndInstall();
 }
 
+void AutoUpdater::SetFeedURL(const std::string& url, mate::Arguments* args) {
+  auto_updater::AutoUpdater::HeaderMap headers;
+  args->GetNext(&headers);
+  auto_updater::AutoUpdater::SetFeedURL(url, headers);
+}
+
 void AutoUpdater::QuitAndInstall() {
   // If we don't have any window then quitAndInstall immediately.
   WindowList* window_list = WindowList::GetInstance();
@@ -100,10 +106,12 @@ mate::Handle<AutoUpdater> AutoUpdater::Create(v8::Isolate* isolate) {
 
 // static
 void AutoUpdater::BuildPrototype(
-    v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> prototype) {
-  mate::ObjectTemplateBuilder(isolate, prototype)
-      .SetMethod("setFeedURL", &auto_updater::AutoUpdater::SetFeedURL)
+    v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> prototype) {
+  prototype->SetClassName(mate::StringToV8(isolate, "AutoUpdater"));
+  mate::ObjectTemplateBuilder(isolate, prototype->PrototypeTemplate())
       .SetMethod("checkForUpdates", &auto_updater::AutoUpdater::CheckForUpdates)
+      .SetMethod("getFeedURL", &auto_updater::AutoUpdater::GetFeedURL)
+      .SetMethod("setFeedURL", &AutoUpdater::SetFeedURL)
       .SetMethod("quitAndInstall", &AutoUpdater::QuitAndInstall);
 }
 
@@ -114,11 +122,14 @@ void AutoUpdater::BuildPrototype(
 
 namespace {
 
+using atom::api::AutoUpdater;
+
 void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Value> unused,
                 v8::Local<v8::Context> context, void* priv) {
   v8::Isolate* isolate = context->GetIsolate();
   mate::Dictionary dict(isolate, exports);
-  dict.Set("autoUpdater", atom::api::AutoUpdater::Create(isolate));
+  dict.Set("autoUpdater", AutoUpdater::Create(isolate));
+  dict.Set("AutoUpdater", AutoUpdater::GetConstructor(isolate)->GetFunction());
 }
 
 }  // namespace

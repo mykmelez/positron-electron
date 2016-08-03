@@ -5,12 +5,12 @@
 #ifndef ATOM_COMMON_CRASH_REPORTER_CRASH_REPORTER_LINUX_H_
 #define ATOM_COMMON_CRASH_REPORTER_CRASH_REPORTER_LINUX_H_
 
+#include <memory>
 #include <string>
 
 #include "atom/common/crash_reporter/crash_reporter.h"
 #include "atom/common/crash_reporter/linux/crash_dump_handler.h"
 #include "base/compiler_specific.h"
-#include "base/memory/scoped_ptr.h"
 
 namespace base {
 template <typename T> struct DefaultSingletonTraits;
@@ -47,7 +47,7 @@ class CrashReporterLinux : public CrashReporter {
                         void* context,
                         const bool succeeded);
 
-  scoped_ptr<google_breakpad::ExceptionHandler> breakpad_;
+  std::unique_ptr<google_breakpad::ExceptionHandler> breakpad_;
   CrashKeyStorage crash_keys_;
 
   uint64_t process_start_time_;

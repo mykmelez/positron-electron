@@ -39,7 +39,7 @@ uint32_t GetFrameHash(webrtc::DesktopFrame* frame) {
   return base::SuperFastHash(reinterpret_cast<char*>(frame->data()), data_size);
 }
 
-gfx::ImageSkia ScaleDesktopFrame(scoped_ptr<webrtc::DesktopFrame> frame,
+gfx::ImageSkia ScaleDesktopFrame(std::unique_ptr<webrtc::DesktopFrame> frame,
                                  gfx::Size size) {
   gfx::Rect scaled_rect = media::ComputeLetterboxRegion(
       gfx::Rect(0, 0, size.width(), size.height()),
@@ -86,8 +86,8 @@ class NativeDesktopMediaList::Worker
     : public webrtc::DesktopCapturer::Callback {
  public:
   Worker(base::WeakPtr<NativeDesktopMediaList> media_list,
-         scoped_ptr<webrtc::ScreenCapturer> screen_capturer,
-         scoped_ptr<webrtc::WindowCapturer> window_capturer);
+         std::unique_ptr<webrtc::ScreenCapturer> screen_capturer,
+         std::unique_ptr<webrtc::WindowCapturer> window_capturer);
   ~Worker() override;
 
   void Refresh(const gfx::Size& thumbnail_size,
@@ -97,15 +97,14 @@ class NativeDesktopMediaList::Worker
   typedef std::map<DesktopMediaID, uint32> ImageHashesMap;
 
   // webrtc::DesktopCapturer::Callback interface.
-  webrtc::SharedMemory* CreateSharedMemory(size_t size) override;
   void OnCaptureCompleted(webrtc::DesktopFrame* frame) override;
 
   base::WeakPtr<NativeDesktopMediaList> media_list_;
 
-  scoped_ptr<webrtc::ScreenCapturer> screen_capturer_;
-  scoped_ptr<webrtc::WindowCapturer> window_capturer_;
+  std::unique_ptr<webrtc::ScreenCapturer> screen_capturer_;
+  std::unique_ptr<webrtc::WindowCapturer> window_capturer_;
 
-  scoped_ptr<webrtc::DesktopFrame> current_frame_;
+  std::unique_ptr<webrtc::DesktopFrame> current_frame_;
 
   ImageHashesMap image_hashes_;
 
@@ -114,8 +113,8 @@ class NativeDesktopMediaList::Worker
 
 NativeDesktopMediaList::Worker::Worker(
     base::WeakPtr<NativeDesktopMediaList> media_list,
-    scoped_ptr<webrtc::ScreenCapturer> screen_capturer,
-    scoped_ptr<webrtc::WindowCapturer> window_capturer)
+    std::unique_ptr<webrtc::ScreenCapturer> screen_capturer,
+    std::unique_ptr<webrtc::WindowCapturer> window_capturer)
     : media_list_(media_list),
       screen_capturer_(std::move(screen_capturer)),
       window_capturer_(std::move(window_capturer)) {
@@ -218,19 +217,14 @@ void NativeDesktopMediaList::Worker::Refresh(
       base::Bind(&NativeDesktopMediaList::OnRefreshFinished, media_list_));
 }
 
-webrtc::SharedMemory* NativeDesktopMediaList::Worker::CreateSharedMemory(
-    size_t size) {
-  return NULL;
-}
-
 void NativeDesktopMediaList::Worker::OnCaptureCompleted(
     webrtc::DesktopFrame* frame) {
   current_frame_.reset(frame);
 }
 
 NativeDesktopMediaList::NativeDesktopMediaList(
-    scoped_ptr<webrtc::ScreenCapturer> screen_capturer,
-    scoped_ptr<webrtc::WindowCapturer> window_capturer)
+    std::unique_ptr<webrtc::ScreenCapturer> screen_capturer,
+    std::unique_ptr<webrtc::WindowCapturer> window_capturer)
     : screen_capturer_(std::move(screen_capturer)),
       window_capturer_(std::move(window_capturer)),
       update_period_(base::TimeDelta::FromMilliseconds(kDefaultUpdatePeriod)),

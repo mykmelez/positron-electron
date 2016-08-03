@@ -11,6 +11,7 @@
 #include "atom/common/native_mate_converters/gurl_converter.h"
 #include "atom/common/native_mate_converters/value_converter.h"
 #include "base/values.h"
+#include "base/strings/string_number_conversions.h"
 #include "native_mate/dictionary.h"
 #include "net/base/upload_bytes_element_reader.h"
 #include "net/base/upload_data_stream.h"
@@ -21,22 +22,6 @@
 #include "net/url_request/url_request.h"
 
 namespace mate {
-
-// static
-v8::Local<v8::Value> Converter<const net::URLRequest*>::ToV8(
-    v8::Isolate* isolate, const net::URLRequest* val) {
-  scoped_ptr<base::DictionaryValue> dict(new base::DictionaryValue);
-  dict->SetString("method", val->method());
-  std::string url;
-  if (!val->url_chain().empty()) url = val->url().spec();
-  dict->SetStringWithoutPathExpansion("url", url);
-  dict->SetString("referrer", val->referrer());
-  scoped_ptr<base::ListValue> list(new base::ListValue);
-  atom::GetUploadData(list.get(), val);
-  if (!list->empty())
-    dict->Set("uploadData", std::move(list));
-  return mate::ConvertToV8(isolate, *(dict.get()));
-}
 
 // static
 v8::Local<v8::Value> Converter<const net::AuthChallengeInfo*>::ToV8(
@@ -62,6 +47,15 @@ v8::Local<v8::Value> Converter<scoped_refptr<net::X509Certificate>>::ToV8(
                                    encoded_data.size()).ToLocalChecked();
   dict.Set("data", buffer);
   dict.Set("issuerName", val->issuer().GetDisplayName());
+  dict.Set("subjectName", val->subject().GetDisplayName());
+  dict.Set("serialNumber", base::HexEncode(val->serial_number().data(),
+                                           val->serial_number().size()));
+  dict.Set("validStart", val->valid_start().ToDoubleT());
+  dict.Set("validExpiry", val->valid_expiry().ToDoubleT());
+  dict.Set("fingerprint",
+           net::HashValue(
+              val->CalculateFingerprint256(val->os_cert_handle())).ToString());
+
   return dict.GetHandle();
 }
 
@@ -69,20 +63,33 @@ v8::Local<v8::Value> Converter<scoped_refptr<net::X509Certificate>>::ToV8(
 
 namespace atom {
 
+void FillRequestDetails(base::DictionaryValue* details,
+                        const net::URLRequest* request) {
+  details->SetString("method", request->method());
+  std::string url;
+  if (!request->url_chain().empty()) url = request->url().spec();
+  details->SetStringWithoutPathExpansion("url", url);
+  details->SetString("referrer", request->referrer());
+  std::unique_ptr<base::ListValue> list(new base::ListValue);
+  GetUploadData(list.get(), request);
+  if (!list->empty())
+    details->Set("uploadData", std::move(list));
+}
+
 void GetUploadData(base::ListValue* upload_data_list,
                    const net::URLRequest* request) {
   const net::UploadDataStream* upload_data = request->get_upload();
   if (!upload_data)
     return;
-  const std::vector<scoped_ptr<net::UploadElementReader>>* readers =
+  const std::vector<std::unique_ptr<net::UploadElementReader>>* readers =
       upload_data->GetElementReaders();
   for (const auto& reader : *readers) {
-    scoped_ptr<base::DictionaryValue> upload_data_dict(
+    std::unique_ptr<base::DictionaryValue> upload_data_dict(
         new base::DictionaryValue);
     if (reader->AsBytesReader()) {
       const net::UploadBytesElementReader* bytes_reader =
           reader->AsBytesReader();
-      scoped_ptr<base::Value> bytes(
+      std::unique_ptr<base::Value> bytes(
           base::BinaryValue::CreateWithCopiedBuffer(bytes_reader->bytes(),
                                                     bytes_reader->length()));
       upload_data_dict->Set("bytes", std::move(bytes));

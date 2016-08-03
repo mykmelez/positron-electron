@@ -41,7 +41,7 @@ bool GetFilesNode(const base::DictionaryValue* root,
   // Test for symbol linked directory.
   std::string link;
   if (dir->GetStringWithoutPathExpansion("link", &link)) {
-    const base::DictionaryValue* linked_node = NULL;
+    const base::DictionaryValue* linked_node = nullptr;
     if (!GetNodeFromPath(link, root, &linked_node))
       return false;
     dir = linked_node;
@@ -60,7 +60,7 @@ bool GetChildNode(const base::DictionaryValue* root,
     return true;
   }
 
-  const base::DictionaryValue* files = NULL;
+  const base::DictionaryValue* files = nullptr;
   return GetFilesNode(root, dir, &files) &&
          files->GetDictionaryWithoutPathExpansion(name, out);
 }
@@ -78,7 +78,7 @@ bool GetNodeFromPath(std::string path,
   for (size_t delimiter_position = path.find_first_of(kSeparators);
        delimiter_position != std::string::npos;
        delimiter_position = path.find_first_of(kSeparators)) {
-    const base::DictionaryValue* child = NULL;
+    const base::DictionaryValue* child = nullptr;
     if (!GetChildNode(root, path.substr(0, delimiter_position), dir, &child))
       return false;
 
@@ -180,7 +180,7 @@ bool Archive::Init() {
 
   std::string error;
   base::JSONReader reader;
-  scoped_ptr<base::Value> value(reader.ReadToValue(header));
+  std::unique_ptr<base::Value> value(reader.ReadToValue(header));
   if (!value || !value->IsType(base::Value::TYPE_DICTIONARY)) {
     LOG(ERROR) << "Failed to parse header: " << error;
     return false;
@@ -283,7 +283,7 @@ bool Archive::CopyFileOut(const base::FilePath& path, base::FilePath* out) {
     return true;
   }
 
-  scoped_ptr<ScopedTemporaryFile> temp_file(new ScopedTemporaryFile);
+  std::unique_ptr<ScopedTemporaryFile> temp_file(new ScopedTemporaryFile);
   base::FilePath::StringType ext = path.Extension();
   if (!temp_file->InitFromFile(&file_, ext, info.offset, info.size))
     return false;

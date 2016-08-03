@@ -14,6 +14,8 @@
 #include "atom/browser/atom_browser_main_parts.h"
 #include "atom/browser/browser.h"
 #include "atom/browser/login_handler.h"
+#include "atom/browser/relauncher.h"
+#include "atom/common/atom_command_line.h"
 #include "atom/common/native_mate_converters/callback.h"
 #include "atom/common/native_mate_converters/file_path_converter.h"
 #include "atom/common/native_mate_converters/gurl_converter.h"
@@ -30,6 +32,7 @@
 #include "base/strings/string_util.h"
 #include "brightray/browser/brightray_paths.h"
 #include "chrome/common/chrome_paths.h"
+#include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/browser/client_certificate_delegate.h"
 #include "content/public/browser/gpu_data_manager.h"
 #include "content/public/browser/render_frame_host.h"
@@ -69,6 +72,30 @@ struct Converter<Browser::UserTask> {
 };
 #endif
 
+template<>
+struct Converter<Browser::LoginItemSettings> {
+  static bool FromV8(v8::Isolate* isolate, v8::Local<v8::Value> val,
+                     Browser::LoginItemSettings* out) {
+    mate::Dictionary dict;
+    if (!ConvertFromV8(isolate, val, &dict))
+      return false;
+
+    dict.Get("openAtLogin", &(out->open_at_login));
+    dict.Get("openAsHidden", &(out->open_as_hidden));
+    return true;
+  }
+
+  static v8::Local<v8::Value> ToV8(v8::Isolate* isolate,
+                                   Browser::LoginItemSettings val) {
+    mate::Dictionary dict = mate::Dictionary::CreateEmpty(isolate);
+    dict.Set("openAtLogin", val.open_at_login);
+    dict.Set("openAsHidden", val.open_as_hidden);
+    dict.Set("restoreState", val.restore_state);
+    dict.Set("wasOpenedAtLogin", val.opened_at_login);
+    dict.Set("wasOpenedAsHidden", val.opened_as_hidden);
+    return dict.GetHandle();
+  }
+};
 }  // namespace mate
 
 
@@ -108,6 +135,8 @@ int GetPathConstant(const std::string& name) {
     return chrome::DIR_USER_PICTURES;
   else if (name == "videos")
     return chrome::DIR_USER_VIDEOS;
+  else if (name == "pepperFlashSystemPlugin")
+    return chrome::FILE_PEPPER_FLASH_SYSTEM_PLUGIN;
   else
     return -1;
 }
@@ -250,6 +279,10 @@ void App::OnFinishLaunching() {
   Emit("ready");
 }
 
+void App::OnAccessibilitySupportChanged() {
+  Emit("accessibility-support-changed", IsAccessibilitySupportEnabled());
+}
+
 #if defined(OS_MACOSX)
 void App::OnContinueUserActivity(
     bool* prevent_default,
@@ -259,13 +292,14 @@ void App::OnContinueUserActivity(
 }
 #endif
 
-void App::OnLogin(LoginHandler* login_handler) {
+void App::OnLogin(LoginHandler* login_handler,
+                  const base::DictionaryValue& request_details) {
   v8::Locker locker(isolate());
   v8::HandleScope handle_scope(isolate());
   bool prevent_default = Emit(
       "login",
       WebContents::CreateFrom(isolate(), login_handler->GetWebContents()),
-      login_handler->request(),
+      request_details,
       login_handler->auth_info(),
       base::Bind(&PassLoginInformation, make_scoped_refptr(login_handler)));
 
@@ -319,7 +353,7 @@ void App::AllowCertificateError(
 void App::SelectClientCertificate(
     content::WebContents* web_contents,
     net::SSLCertRequestInfo* cert_request_info,
-    scoped_ptr<content::ClientCertificateDelegate> delegate) {
+    std::unique_ptr<content::ClientCertificateDelegate> delegate) {
   std::shared_ptr<content::ClientCertificateDelegate>
       shared_delegate(delegate.release());
   bool prevent_default =
@@ -370,7 +404,7 @@ void App::SetPath(mate::Arguments* args,
 
 void App::SetDesktopName(const std::string& desktop_name) {
 #if defined(OS_LINUX)
-  scoped_ptr<base::Environment> env(base::Environment::Create());
+  std::unique_ptr<base::Environment> env(base::Environment::Create());
   env->SetVar("CHROME_DESKTOP", desktop_name);
 #endif
 }
@@ -401,14 +435,73 @@ bool App::MakeSingleInstance(
   }
 }
 
+void App::ReleaseSingleInstance() {
+  if (process_singleton_.get()) {
+    process_singleton_->Cleanup();
+    process_singleton_.reset();
+  }
+}
+
+bool App::Relaunch(mate::Arguments* js_args) {
+  // Parse parameters.
+  bool override_argv = false;
+  base::FilePath exec_path;
+  relauncher::StringVector args;
+
+  mate::Dictionary options;
+  if (js_args->GetNext(&options)) {
+    if (options.Get("execPath", &exec_path) | options.Get("args", &args))
+      override_argv = true;
+  }
+
+  if (!override_argv) {
+#if defined(OS_WIN)
+    const relauncher::StringVector& argv = atom::AtomCommandLine::wargv();
+#else
+    const relauncher::StringVector& argv = atom::AtomCommandLine::argv();
+#endif
+    return relauncher::RelaunchApp(argv);
+  }
+
+  relauncher::StringVector argv;
+  argv.reserve(1 + args.size());
+
+  if (exec_path.empty()) {
+    base::FilePath current_exe_path;
+    PathService::Get(base::FILE_EXE, &current_exe_path);
+    argv.push_back(current_exe_path.value());
+  } else {
+    argv.push_back(exec_path.value());
+  }
+
+  argv.insert(argv.end(), args.begin(), args.end());
+
+  return relauncher::RelaunchApp(argv);
+}
+
+void App::DisableHardwareAcceleration(mate::Arguments* args) {
+  if (Browser::Get()->is_ready()) {
+    args->ThrowError("app.disableHardwareAcceleration() can only be called "
+                     "before app is ready");
+    return;
+  }
+  content::GpuDataManager::GetInstance()->DisableHardwareAcceleration();
+}
+
+bool App::IsAccessibilitySupportEnabled() {
+  auto ax_state = content::BrowserAccessibilityState::GetInstance();
+  return ax_state->IsAccessibleBrowser();
+}
+
 #if defined(USE_NSS_CERTS)
 void App::ImportCertificate(
     const base::DictionaryValue& options,
     const net::CompletionCallback& callback) {
-  auto browser_context = AtomBrowserMainParts::Get()->browser_context();
+  auto browser_context = AtomBrowserContext::From("", false);
   if (!certificate_manager_model_) {
-    scoped_ptr<base::DictionaryValue> copy = options.CreateDeepCopy();
-    CertificateManagerModel::Create(browser_context,
+    std::unique_ptr<base::DictionaryValue> copy = options.CreateDeepCopy();
+    CertificateManagerModel::Create(
+        browser_context.get(),
         base::Bind(&App::OnCertificateManagerModelCreated,
                    base::Unretained(this),
                    base::Passed(&copy),
@@ -421,9 +514,9 @@ void App::ImportCertificate(
 }
 
 void App::OnCertificateManagerModelCreated(
-    scoped_ptr<base::DictionaryValue> options,
+    std::unique_ptr<base::DictionaryValue> options,
     const net::CompletionCallback& callback,
-    scoped_ptr<CertificateManagerModel> model) {
+    std::unique_ptr<CertificateManagerModel> model) {
   certificate_manager_model_ = std::move(model);
   int rv = ImportIntoCertStore(certificate_manager_model_.get(),
                                *(options.get()));
@@ -438,9 +531,10 @@ mate::Handle<App> App::Create(v8::Isolate* isolate) {
 
 // static
 void App::BuildPrototype(
-    v8::Isolate* isolate, v8::Local<v8::ObjectTemplate> prototype) {
+    v8::Isolate* isolate, v8::Local<v8::FunctionTemplate> prototype) {
+  prototype->SetClassName(mate::StringToV8(isolate, "App"));
   auto browser = base::Unretained(Browser::Get());
-  mate::ObjectTemplateBuilder(isolate, prototype)
+  mate::ObjectTemplateBuilder(isolate, prototype->PrototypeTemplate())
       .SetMethod("quit", base::Bind(&Browser::Quit, browser))
       .SetMethod("exit", base::Bind(&Browser::Exit, browser))
       .SetMethod("focus", base::Bind(&Browser::Focus, browser))
@@ -461,6 +555,12 @@ void App::BuildPrototype(
                  base::Bind(&Browser::SetAsDefaultProtocolClient, browser))
       .SetMethod("removeAsDefaultProtocolClient",
                  base::Bind(&Browser::RemoveAsDefaultProtocolClient, browser))
+      .SetMethod("setBadgeCount", base::Bind(&Browser::SetBadgeCount, browser))
+      .SetMethod("getBadgeCount", base::Bind(&Browser::GetBadgeCount, browser))
+      .SetMethod("getLoginItemSettings",
+                 base::Bind(&Browser::GetLoginItemSettings, browser))
+      .SetMethod("setLoginItemSettings",
+                 base::Bind(&Browser::SetLoginItemSettings, browser))
 #if defined(OS_MACOSX)
       .SetMethod("hide", base::Bind(&Browser::Hide, browser))
       .SetMethod("show", base::Bind(&Browser::Show, browser))
@@ -470,8 +570,11 @@ void App::BuildPrototype(
                  base::Bind(&Browser::GetCurrentActivityType, browser))
 #endif
 #if defined(OS_WIN)
-      .SetMethod("setUserTasks",
-                 base::Bind(&Browser::SetUserTasks, browser))
+      .SetMethod("setUserTasks", base::Bind(&Browser::SetUserTasks, browser))
+#endif
+#if defined(OS_LINUX)
+      .SetMethod("isUnityRunning",
+                 base::Bind(&Browser::IsUnityRunning, browser))
 #endif
       .SetMethod("setPath", &App::SetPath)
       .SetMethod("getPath", &App::GetPath)
@@ -480,7 +583,13 @@ void App::BuildPrototype(
 #if defined(USE_NSS_CERTS)
       .SetMethod("importCertificate", &App::ImportCertificate)
 #endif
-      .SetMethod("makeSingleInstance", &App::MakeSingleInstance);
+      .SetMethod("makeSingleInstance", &App::MakeSingleInstance)
+      .SetMethod("releaseSingleInstance", &App::ReleaseSingleInstance)
+      .SetMethod("relaunch", &App::Relaunch)
+      .SetMethod("isAccessibilitySupportEnabled",
+                 &App::IsAccessibilitySupportEnabled)
+      .SetMethod("disableHardwareAcceleration",
+                 &App::DisableHardwareAcceleration);
 }
 
 }  // namespace api
@@ -530,6 +639,7 @@ void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Value> unused,
   auto command_line = base::CommandLine::ForCurrentProcess();
 
   mate::Dictionary dict(isolate, exports);
+  dict.Set("App", atom::api::App::GetConstructor(isolate)->GetFunction());
   dict.Set("app", atom::api::App::Create(isolate));
   dict.SetMethod("appendSwitch", &AppendSwitch);
   dict.SetMethod("appendArgument",
@@ -548,6 +658,7 @@ void Initialize(v8::Local<v8::Object> exports, v8::Local<v8::Value> unused,
                  base::Bind(&Browser::DockGetBadgeText, browser));
   dict.SetMethod("dockHide", base::Bind(&Browser::DockHide, browser));
   dict.SetMethod("dockShow", base::Bind(&Browser::DockShow, browser));
+  dict.SetMethod("dockIsVisible", base::Bind(&Browser::DockIsVisible, browser));
   dict.SetMethod("dockSetMenu", &DockSetMenu);
   dict.SetMethod("dockSetIcon", base::Bind(&Browser::DockSetIcon, browser));
 #endif
